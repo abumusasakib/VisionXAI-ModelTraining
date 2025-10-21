@@ -18,6 +18,7 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
+
 class CaptionParser(ABC):
     """
     Abstract Base Class for caption parsers.
@@ -27,7 +28,9 @@ class CaptionParser(ABC):
     """
 
     @abstractmethod
-    def extract(self, file_path: str, images_path: str, validate_images: bool) -> Dict[str, List[str]]:
+    def extract(
+        self, file_path: str, images_path: str, validate_images: bool
+    ) -> Dict[str, List[str]]:
         """
         Abstract method to extract image-caption mappings from a given file.
 
@@ -43,9 +46,11 @@ class CaptionParser(ABC):
         """
         pass
 
+
 # ### XLSX Caption Parser
 
 # The `XLSXCaptionParser` class is responsible for extracting image and caption data from XLSX files. It handles the specific structure of Excel XML files, including shared strings and custom image name formats. It uses cElementTree if available and includes refined print-based progress indicators during row parsing.
+
 
 class XLSXCaptionParser(CaptionParser):
     """
@@ -66,7 +71,9 @@ class XLSXCaptionParser(CaptionParser):
         """
         self.has_header = has_header
 
-    def extract(self, xlsx_file: str, images_path: str = "", validate_images: bool = False) -> Dict[str, List[str]]:
+    def extract(
+        self, xlsx_file: str, images_path: str = "", validate_images: bool = False
+    ) -> Dict[str, List[str]]:
         """
         Extracts image names and captions from an XLSX file.
 
@@ -79,7 +86,6 @@ class XLSXCaptionParser(CaptionParser):
 
         Returns:
             Dict[str, List[str]]: A dictionary where keys are image paths and values are lists of captions.
-                                  Captions are formatted with `<start>` and `<end>` tokens.
         """
         caption_mapping: Dict[str, List[str]] = {}
         try:
@@ -97,7 +103,9 @@ class XLSXCaptionParser(CaptionParser):
                         tree = ET.parse(f)
                         shared_strings = [
                             t.text
-                            for t in tree.findall(f".//{ns}t")  # Find all 't' (text) elements within the namespace.
+                            for t in tree.findall(
+                                f".//{ns}t"
+                            )  # Find all 't' (text) elements within the namespace.
                             if t.text is not None
                         ]
 
@@ -108,33 +116,49 @@ class XLSXCaptionParser(CaptionParser):
 
                 with xlsx.open(sheet_file) as f:
                     tree = ET.parse(f)
-                    rows = tree.findall(f".//{ns}row")  # Find all 'row' elements within the namespace.
+                    rows = tree.findall(
+                        f".//{ns}row"
+                    )  # Find all 'row' elements within the namespace.
                     # Determine the starting row based on whether a header is present.
                     start_row = 1 if self.has_header and len(rows) > 0 else 0
-                    total_rows = len(rows[start_row:]) # Calculate total rows to process.
+                    total_rows = len(
+                        rows[start_row:]
+                    )  # Calculate total rows to process.
 
-                    print(f"\n➡️  Parsing {os.path.basename(xlsx_file)} ({total_rows} rows)...")
+                    print(
+                        f"\n➡️  Parsing {os.path.basename(xlsx_file)} ({total_rows} rows)..."
+                    )
 
                     for idx, row in enumerate(rows[start_row:], start=1):
                         # Print progress every 500 rows or at the last row, using carriage return for single line.
                         if idx % 500 == 0 or idx == total_rows:
-                            print(f"\r  → Row {idx}/{total_rows}...", end="", flush=True)
+                            print(
+                                f"\r  → Row {idx}/{total_rows}...", end="", flush=True
+                            )
 
                         # Filter for 'c' (cell) elements within the row, ensuring correct tag matching.
                         cells = [el for el in row if el.tag.endswith("c")]
-                        if len(cells) < 2:  # Ensure there are at least two columns (image name and caption).
+                        if (
+                            len(cells) < 2
+                        ):  # Ensure there are at least two columns (image name and caption).
                             continue
 
                         def get_cell_value(cell: ET.Element) -> Optional[str]:
                             """Helper function to extract cell value, handling shared strings."""
                             cell_type = cell.get("t")  # 's' indicates shared string.
                             # Efficiently find the 'v' (value) element among cell children.
-                            value_elem = next((v for v in cell if v.tag.endswith("v")), None)
+                            value_elem = next(
+                                (v for v in cell if v.tag.endswith("v")), None
+                            )
                             if value_elem is not None and value_elem.text:
                                 if cell_type == "s":
                                     try:
                                         idx = int(value_elem.text)
-                                        return shared_strings[idx] if 0 <= idx < len(shared_strings) else None
+                                        return (
+                                            shared_strings[idx]
+                                            if 0 <= idx < len(shared_strings)
+                                            else None
+                                        )
                                     except (ValueError, IndexError):
                                         return None
                                 return value_elem.text
@@ -150,15 +174,23 @@ class XLSXCaptionParser(CaptionParser):
                                 img_name_val = img_name_val.split("#")[0]
                             img_name_val = img_name_val.replace("*MG*", "IMG_")
                             # Construct full image path.
-                            img_path = os.path.join(images_path, img_name_val) if images_path else img_name_val
+                            img_path = (
+                                os.path.join(images_path, img_name_val)
+                                if images_path
+                                else img_name_val
+                            )
 
                             # Check for image existence only if validation is requested.
                             if not validate_images or Path(img_path).exists():
                                 if caption_val:
                                     # Format caption with start/end tokens.
-                                    formatted_caption = f"<start> {caption_val.strip()} <end>"
+                                    formatted_caption = (
+                                        f"{caption_val.strip()}"
+                                    )
                                     # Add caption to the list for the corresponding image path.
-                                    caption_mapping.setdefault(img_path, []).append(formatted_caption)
+                                    caption_mapping.setdefault(img_path, []).append(
+                                        formatted_caption
+                                    )
 
         except zipfile.BadZipFile:
             print(f"\nError: {xlsx_file} is not a valid zip file.")
@@ -167,9 +199,11 @@ class XLSXCaptionParser(CaptionParser):
 
         return caption_mapping
 
+
 # ### CSV Caption Parser
 
 # The `CSVCaptionParser` class handles the extraction of image and caption data from CSV files. It specifically looks for "caption\_id" and "bengali\_caption" columns and includes detailed print-based progress indicators as well.
+
 
 class CSVCaptionParser(CaptionParser):
     """
@@ -180,7 +214,9 @@ class CSVCaptionParser(CaptionParser):
     Includes print-based progress indicators for row parsing.
     """
 
-    def extract(self, csv_file_path: str, images_path: str = "", validate_images: bool = True) -> Dict[str, List[str]]:
+    def extract(
+        self, csv_file_path: str, images_path: str = "", validate_images: bool = True
+    ) -> Dict[str, List[str]]:
         """
         Extracts image names and captions from a CSV file.
 
@@ -193,26 +229,27 @@ class CSVCaptionParser(CaptionParser):
 
         Returns:
             Dict[str, List[str]]: A dictionary where keys are image paths and values are lists of captions.
-                                  Captions are formatted with `<start>` and `<end>` tokens.
         """
         caption_mapping: Dict[str, List[str]] = {}
         try:
-            with open(csv_file_path, newline='', encoding='utf-8') as csvfile:
+            with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)  # Reads CSV into dictionary rows.
 
                 # Reading all rows into a list to get total count. For very large CSVs,
                 # this might be memory intensive. An alternative is to count lines first.
-                rows = list(reader) # Load all rows into memory to get total count.
+                rows = list(reader)  # Load all rows into memory to get total count.
                 total_rows = len(rows)
 
                 csv_dir = os.path.dirname(os.path.abspath(csv_file_path))
-                print(f"\n➡️  Parsing {os.path.basename(csv_file_path)} (folder: {csv_dir}, {total_rows} rows)...")
-                processed_rows_count = 0 # Counter for successfully processed rows
+                print(
+                    f"\n➡️  Parsing {os.path.basename(csv_file_path)} (folder: {csv_dir}, {total_rows} rows)..."
+                )
+                processed_rows_count = 0  # Counter for successfully processed rows
                 for idx, row in enumerate(rows, start=1):
                     # Print progress every 10,000 rows or at the last row, using carriage return.
                     if idx % 10000 == 0 or idx == total_rows:
-                        print(f"\r  → Row {idx}/{total_rows}...", end='', flush=True)
-                    
+                        print(f"\r  → Row {idx}/{total_rows}...", end="", flush=True)
+
                     img_name = row.get("caption_id")
                     caption_bn = row.get("bengali_caption")
 
@@ -221,17 +258,26 @@ class CSVCaptionParser(CaptionParser):
                         if "#" in img_name:
                             img_name = img_name.split("#")[0]
                         # Construct full image path.
-                        img_path = os.path.join(images_path, img_name) if images_path else img_name
+                        img_path = (
+                            os.path.join(images_path, img_name)
+                            if images_path
+                            else img_name
+                        )
 
                         if validate_images and not Path(img_path).exists():
                             continue  # Skip if image validation is on and file not found.
 
                         # Add caption to the list for the corresponding image path.
                         # Ensure caption_bn is a string before strip()
-                        caption_mapping.setdefault(img_path, []).append(f" <start> {str(caption_bn).strip()} <end> ")
-                        processed_rows_count += 1 # Increment counter for valid entries
+                        caption_mapping.setdefault(img_path, []).append(
+                            f"{str(caption_bn).strip()}"
+                        )
+                        processed_rows_count += 1  # Increment counter for valid entries
             # Final update for the progress line after the loop
-            print(f"\r  → Finished parsing {os.path.basename(csv_file_path)}. Total valid entries: {processed_rows_count}.", flush=True)
+            print(
+                f"\r  → Finished parsing {os.path.basename(csv_file_path)}. Total valid entries: {processed_rows_count}.",
+                flush=True,
+            )
         except FileNotFoundError:
             print(f"Error: CSV file not found at {csv_file_path}")
         except Exception as e:
@@ -240,9 +286,11 @@ class CSVCaptionParser(CaptionParser):
 
         return caption_mapping
 
+
 # ### JSON Caption Parser
 
 # The `JSONCaptionParser` is a concrete implementation designed to parse specific JSON file structures, extracting filenames and their associated captions. It expects a list of objects, each with a 'filename' and a 'caption' (which is itself a list of strings).
+
 
 class JSONCaptionParser(CaptionParser):
     """
@@ -257,7 +305,9 @@ class JSONCaptionParser(CaptionParser):
     ]
     """
 
-    def extract(self, file_path: str, images_path: str = "", validate_images: bool = True) -> Dict[str, List[str]]:
+    def extract(
+        self, file_path: str, images_path: str = "", validate_images: bool = True
+    ) -> Dict[str, List[str]]:
         """
         Extracts image filenames and their associated captions from a JSON file.
 
@@ -271,7 +321,7 @@ class JSONCaptionParser(CaptionParser):
 
         Returns:
             Dict[str, List[str]]: A dictionary mapping absolute image paths to a list of their captions.
-                                  Captions are formatted with leading/trailing spaces as per the original code.
+                                  Captions are formatted with leading/trailing spaces.
         """
         caption_mapping: Dict[str, List[str]] = {}
         print(f"\n➡️  Parsing JSON: {os.path.basename(file_path)}...")
@@ -281,38 +331,55 @@ class JSONCaptionParser(CaptionParser):
 
                 # Ensure caption_data is iterable (e.g., a list of dictionaries)
                 if not isinstance(caption_data, list):
-                    print(f"Warning: JSON file {file_path} does not contain a list at its root. Skipping.")
+                    print(
+                        f"Warning: JSON file {file_path} does not contain a list at its root. Skipping."
+                    )
                     return caption_mapping
 
                 for idx, item in enumerate(caption_data):
                     if idx % 1000 == 0:
-                        print(f"\r  → Processing JSON item {idx}...", end="", flush=True)
+                        print(
+                            f"\r  → Processing JSON item {idx}...", end="", flush=True
+                        )
 
-                    if not isinstance(item, dict) or 'filename' not in item or 'caption' not in item:
-                        print(f"Warning: Skipping malformed JSON item in {file_path}: {item}")
+                    if (
+                        not isinstance(item, dict)
+                        or "filename" not in item
+                        or "caption" not in item
+                    ):
+                        print(
+                            f"Warning: Skipping malformed JSON item in {file_path}: {item}"
+                        )
                         continue
 
                     # Construct the full image path
-                    img_name_from_json = item['filename'].strip()
+                    img_name_from_json = item["filename"].strip()
                     img_name_abs = os.path.join(images_path, img_name_from_json)
 
                     # Ensure captions is a list, even if it's a single string
-                    raw_captions = item['caption']
+                    raw_captions = item["caption"]
                     if not isinstance(raw_captions, list):
-                        raw_captions = [raw_captions] # Convert single string to list
+                        raw_captions = [raw_captions]  # Convert single string to list
 
                     # Format captions
-                    formatted_captions = ["<start>" + str(caption).strip() + " " for caption in raw_captions if caption is not None]
+                    formatted_captions = [
+                        str(caption).strip() + " "
+                        for caption in raw_captions
+                        if caption is not None
+                    ]
 
                     # Validate image existence if required
                     if not validate_images or Path(img_name_abs).exists():
-                        if formatted_captions: # Only add if there are valid captions
+                        if formatted_captions:  # Only add if there are valid captions
                             caption_mapping[img_name_abs] = formatted_captions
                     else:
                         # print(f"Warning: Image not found for {img_name_abs}. Skipping.")
-                        pass # Suppress warning for missing images during non-validation pass
+                        pass  # Suppress warning for missing images during non-validation pass
 
-            print(f"\r  → Finished parsing {os.path.basename(file_path)}. Total valid entries: {len(caption_mapping)}.", flush=True)
+            print(
+                f"\r  → Finished parsing {os.path.basename(file_path)}. Total valid entries: {len(caption_mapping)}.",
+                flush=True,
+            )
 
         except json.JSONDecodeError as e:
             print(f"\nError: Invalid JSON format in {file_path}: {e}")
@@ -321,11 +388,15 @@ class JSONCaptionParser(CaptionParser):
 
         return caption_mapping
 
+
 # ### Data Collector
 
 # The `collect_all_caption_data` function orchestrates the process of finding and parsing caption files across a given directory structure. It intelligently determines the correct parser and image directory for different file types.
 
-def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dict[str, List[str]]:
+
+def collect_all_caption_data(
+    base_dir: str, validate_images: bool = True
+) -> Dict[str, List[str]]:
     """
     Walks through a base directory to find and extract caption data from XLSX and CSV files.
     It identifies different types of caption files based on their names and extensions
@@ -341,7 +412,9 @@ def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dic
     all_captions: Dict[str, List[str]] = {}
     xlsx_parser = XLSXCaptionParser(has_header=True)
     csv_parser = CSVCaptionParser()
-    banglaview_xlsx_parser = XLSXCaptionParser(has_header=False) # BanglaView has no header
+    banglaview_xlsx_parser = XLSXCaptionParser(
+        has_header=False
+    )  # BanglaView has no header
     json_parser = JSONCaptionParser()
 
     # Walk through the directory tree.
@@ -350,7 +423,7 @@ def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dic
         # Indicate current directory being scanned.
         # This can be noisy for deep hierarchies, consider removing for very large datasets.
         # print(f"  📂 In directory: {root}")
-        
+
         for file in files:
             lower_file = file.lower()
             file_path = os.path.join(root, file)
@@ -363,7 +436,9 @@ def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dic
                 if not os.path.exists(img_dir):
                     img_dir = root  # Fallback to the current directory if 'image' subfolder doesn't exist.
                 # print(f"Parsing XLSX: {file_path}") # This print is inside the parser's extract method
-                captions = xlsx_parser.extract(file_path, images_path=img_dir, validate_images=validate_images)
+                captions = xlsx_parser.extract(
+                    file_path, images_path=img_dir, validate_images=validate_images
+                )
 
             # Process CSV files containing "ban-cap" in their name.
             elif lower_file.endswith(".csv") and "ban-cap" in lower_file:
@@ -372,18 +447,24 @@ def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dic
                 if not os.path.exists(img_dir):
                     img_dir = base_dir  # Fallback to base_dir if the specific path isn't found.
                 # print(f"Parsing CSV: {file_path}") # This print is inside the parser's extract method
-                captions = csv_parser.extract(file_path, images_path=img_dir, validate_images=validate_images)
+                captions = csv_parser.extract(
+                    file_path, images_path=img_dir, validate_images=validate_images
+                )
 
             # Process the specific "banglaview_dataset.xlsx" file.
             elif lower_file == "banglaview_dataset.xlsx":
                 # Specific image directory structure for BanglaView.
                 img_dir = os.path.join(base_dir, "flickr30k_images", "flickr30k_images")
                 if not os.path.exists(img_dir):
-                    print(f"Warning: BanglaView image directory not found at {img_dir}. Skipping.")
+                    print(
+                        f"Warning: BanglaView image directory not found at {img_dir}. Skipping."
+                    )
                     continue
                 # print(f"Parsing BanglaView XLSX: {file_path}") # This print is inside the parser's extract method
                 # BanglaView XLSX is known to have no header.
-                captions = banglaview_xlsx_parser.extract(file_path, images_path=img_dir, validate_images=validate_images)
+                captions = banglaview_xlsx_parser.extract(
+                    file_path, images_path=img_dir, validate_images=validate_images
+                )
             # Process the BanglaLekhaImageCaptions dataset.
             elif lower_file.endswith(".json") and "captions" in lower_file:
                 # First check 'images' subdirectory relative to current file's root
@@ -391,10 +472,14 @@ def collect_all_caption_data(base_dir: str, validate_images: bool = True) -> Dic
                 if not os.path.exists(img_dir):
                     # Fallback to a specific path relative to base_dir if not found locally
                     img_dir = os.path.join(base_dir, "rxxch9vw59.2", "images")
-                captions = json_parser.extract(file_path, images_path=img_dir, validate_images=validate_images)
+                captions = json_parser.extract(
+                    file_path, images_path=img_dir, validate_images=validate_images
+                )
             else:
-                continue # Skip files that don't match any known caption format.
+                continue  # Skip files that don't match any known caption format.
 
-            all_captions.update(captions)  # Merge new captions into the main dictionary.
+            all_captions.update(
+                captions
+            )  # Merge new captions into the main dictionary.
 
     return all_captions
