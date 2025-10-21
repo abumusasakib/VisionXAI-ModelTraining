@@ -5,3 +5,9 @@
 # Jupyter Notebooks
 *.ipynb                filter=lfs diff=lfs merge=lfs -text binary
 *.whl filter=lfs diff=lfs merge=lfs -text
+
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.ipynb -text
