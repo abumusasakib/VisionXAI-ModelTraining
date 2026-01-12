@@ -1,0 +1,20 @@
+Model: "rnn__decoder"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ embedding (Embedding)       multiple                  2560256   
+                                                                 
+ gru (GRU)                   multiple                  1575936   
+                                                                 
+ dense_1 (Dense)             multiple                  262656    
+                                                                 
+ dense_2 (Dense)             multiple                  5130513   
+                                                                 
+ bahdanau_attention (Bahdana  multiple                 394753    
+ uAttention)                                                     
+                                                                 
+=================================================================
+Total params: 9,924,114
+Trainable params: 9,924,114
+Non-trainable params: 0
+_________________________________________________________________

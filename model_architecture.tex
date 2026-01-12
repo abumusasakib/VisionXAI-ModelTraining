@@ -1,0 +1,242 @@
+\section{Model}
+
+\subsection{Model Training}
+
+The training process for the image captioning model is structured around iterative optimization of an encoder--decoder architecture, where learning progresses through multiple complete passes over the dataset, referred to as epochs. Each epoch allows the model to refine its parameters using gradient-based optimization, gradually minimizing the loss between predicted and ground-truth captions.
+
+\begin{itemize}
+    \item \textbf{Dataset Size:}
+    The model is trained on a total of \textbf{18,542 image--caption pairs}, where each image is associated with multiple Bengali textual descriptions. These pairs provide a rich multimodal dataset that grounds visual content in natural-language semantics.
+
+    \item \textbf{Training Configuration:}
+    Training was conducted for a maximum of \textbf{100 epochs}, with \textbf{early stopping (patience = 5)} to prevent overfitting. A batch size of $B = 1$ was used, resulting in 18,542 parameter update steps per epoch.
+
+    \item \textbf{Total Iterations:}
+    The total number of training iterations ($\mathcal{I}_{\text{total}}$) is computed as:
+    \begin{equation}
+        \mathcal{I}_{\text{total}} = \text{Steps per Epoch} \times \text{Number of Epochs}
+    \end{equation}
+    
+    Substituting the dataset-specific parameters yields:
+    \begin{equation}
+        \mathcal{I}_{\text{total}} = 18,542 \times 100 = 1,854,200
+    \end{equation}
+    
+    Thus, complete training comprises approximately \textbf{1.85 million} update operations before early stopping.
+
+    \item \textbf{Loss Function:}
+    The learning objective minimizes the \textit{sparse categorical cross-entropy} (SCCE) loss over all time steps in each generated caption. Given a target sequence of length $T$, the loss is defined as:
+    \begin{equation}
+        \mathcal{L} = -\frac{1}{T} \sum_{t=1}^{T} \log P(y_t \mid y_{1:t-1}, I)
+    \end{equation}
+    
+    Here, $y_t$ denotes the ground-truth token at step $t$, and $P(y_t \mid y_{1:t-1}, I)$ represents the probability assigned by the decoder given previous tokens and the encoded image $I$. Padding tokens are masked to ensure accurate loss computation.
+
+    \item \textbf{Optimization Strategy:}
+    Parameter updates are performed using the \textbf{Adam optimizer}. The training procedure employs \textbf{teacher forcing}, where the decoder receives the ground-truth token at each time step, enabling faster convergence and reducing exposure bias during early training.
+
+    \item \textbf{Regularization via Early Stopping:}
+    Validation loss is monitored after every epoch. The model checkpoint corresponding to the lowest validation loss is saved automatically. Training terminates when the validation loss fails to improve for five consecutive epochs, thereby preventing overfitting and ensuring reliable generalization.
+
+    \item \textbf{Training Duration:}
+    All training was executed within the \textbf{CodeOcean environment}, with the full experiment completing in approximately \textbf{16 minutes and 24 seconds}. Model weights, tokenizer files, and experiment metadata were archived to support reproducibility and efficient re-initialization.
+\end{itemize}
+
+\subsection{Model Architecture}
+
+The architecture consists of an encoder--decoder pipeline designed to translate the visual representational space of an image into a coherent Bengali textual description. The architecture has been summarized in Figure \ref{fig:model_architecture}.
+
+\begin{figure}[htbp]
+\centering
+\caption{Encoder--Decoder Architecture with Bahdanau Attention for Bengali Image Captioning}
+\label{fig:model_architecture}
+\begin{tikzpicture}[
+    node distance=1.2cm and 2.5cm,
+    every node/.style={font=\small},
+    box/.style={
+        rectangle,
+        draw,
+        rounded corners,
+        minimum height=0.9cm,
+        text width=3cm,
+        align=center,
+        fill=white,
+        drop shadow
+    },
+    arrow/.style={->, >=stealth, thick},
+    dashedarrow/.style={->, >=stealth, thick, dashed}
+]
+% Left path: Encoder
+\node (img) [box, fill=blue!10] {Input Image};
+\node (roi) [box, fill=blue!10, below=1.0cm of img] {ROI Feature\\Extraction\\{\footnotesize $X \in \mathbb{R}^{B \times K \times 256}$}};
+\node (enc) [box, fill=blue!10, below=1.0cm of roi] {ROI Encoder\\{\footnotesize Dense + ReLU}\\{\footnotesize + LayerNorm}\\{\footnotesize $F \in \mathbb{R}^{B \times K \times d'}$}};
+
+% Middle: Attention (positioned between encoder and decoder vertically)
+\node (att) [box, fill=yellow!20, right=of roi] {Bahdanau\\Attention\\{\footnotesize $\alpha_{t,i}$, $c_t$}};
+
+% Right path: Decoder
+\node (emb) [box, fill=green!10, above=1.0cm of att] {Word Embedding\\{\footnotesize Token $y_{t-1}$}};
+\node (gru) [box, fill=green!10, below=1.0cm of att] {GRU Decoder\\{\footnotesize $h_t = \text{GRU}([c_t; x_t])$}};
+\node (out) [box, fill=green!10, below=1.0cm of gru] {Dense + Softmax\\{\footnotesize $p_t(y_t)$}};
+\node (loss) [box, fill=red!10, below=1.0cm of out] {Masked Sparse\\Categorical\\Cross-Entropy};
+
+% Encoder arrows
+\draw [arrow] (img) -- (roi);
+\draw [arrow] (roi) -- (enc);
+
+% Encoder to attention - direct horizontal connection
+\draw [arrow] (enc) -- (att.south west) node[midway, below, font=\tiny] {$F$};
+
+% Embedding to attention
+\draw [arrow] (emb) -- (att) node[midway, right, font=\tiny] {$x_t$};
+
+% Decoder arrows
+\draw [arrow] (att) -- (gru) node[midway, right, font=\tiny] {$c_t$};
+\draw [arrow] (gru) -- (out);
+\draw [arrow] (out) -- (loss);
+
+% Feedback - goes from output, right, then up to embedding
+\draw [dashedarrow] (out.east) -- ++(1.0,0) |- (emb.east) node[pos=0.6, right, font=\tiny] {feedback};
+
+\end{tikzpicture}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Dataset:} The dataset consists of \textbf{18,542 training samples}, each containing one image accompanied by multiple Bengali descriptions.
+
+    \item \textbf{Vocabulary Size:} The tokenizer yields a vocabulary of \textbf{22,276 unique words}, representing the lexical space the decoder can generate.
+
+    \item \textbf{Caption Length:} The average caption length is approximately \textbf{38 tokens}, capturing detailed descriptions of image content.
+\end{itemize}
+
+\subsubsection{Encoder: ROI Feature Encoder}
+
+The encoder maps Region-of-Interest (ROI) feature tensors into a normalized embedding space. Formally:
+\begin{equation}
+    \mathbf{F} = \text{LayerNorm}(\text{ReLU}(W_{\text{enc}} \cdot \mathbf{X} + b_{\text{enc}}))
+\end{equation}
+
+where $\mathbf{X} \in \mathbb{R}^{B \times K \times d}$ is the ROI feature tensor (with $d = 256$), and $\mathbf{F} \in \mathbb{R}^{B \times K \times d'}$ represents the transformed embeddings.
+
+\subsubsection{Attention Mechanism (Bahdanau Attention)}
+
+The decoder integrates Bahdanau attention to dynamically weight image features:
+\begin{align}
+    e_{t,i} &= v^\top \tanh(W_1 f_i + W_2 h_{t-1}) \\
+    \alpha_{t,i} &= \frac{\exp(e_{t,i})}{\sum_j \exp(e_{t,j})} \\
+    c_t &= \sum_i \alpha_{t,i} f_i
+\end{align}
+
+Here, $c_t$ denotes the context vector created by attending to salient visual regions.
+
+\subsubsection{Decoder (GRU-Based Sequence Generator)}
+
+Caption generation proceeds via a gated recurrent unit (GRU):
+\begin{align}
+    x_t &= \text{Embed}(y_{t-1}), \quad z_t = [c_t; x_t] \\
+    h_t, o_t &= \text{GRU}(z_t, h_{t-1}) \\
+    p_t &= \text{softmax}(W_o o_t + b_o)
+\end{align}
+
+where $p_t$ is the probability distribution over the next word.
+
+\subsubsection{Sparse Categorical Cross-Entropy with Masking}
+
+\begin{equation}
+    \mathcal{L} = - \frac{1}{T} \sum_{t=1}^T m_t \cdot \log p_t[y_t]
+\end{equation}
+
+The mask $m_t$ ensures that padding tokens do not contribute to the loss.
+
+\subsection{Training Algorithm}
+
+The complete training algorithm is summarized in Algorithm~\ref{alg:training}.
+
+\begin{algorithm}
+\caption{Image Captioning Model Training}
+\label{alg:training}
+\begin{algorithmic}[1]
+    \State Initialize encoder, decoder, optimizer, checkpoint manager
+    \State Set $\text{best\_val\_loss} = \infty$, $\text{patience\_counter} = 0$
+    
+    \For{$\text{epoch} = 1$ to $\text{EPOCHS}$}
+        \State Reset training and validation loss trackers
+        
+        \State \Comment{--- Training ---}
+        \For{$(\text{img\_tensor}, \text{target})$ in $\text{training\_set}$}
+            \State Initialize decoder hidden state
+            \State Set decoder input = $\langle\text{start}\rangle$
+            \State Encode image: $\text{features} = \text{Encoder}(\text{img\_tensor})$
+            
+            \For{$t = 1$ to $T$}
+                \State Generate predictions via Decoder
+                \State Compute loss for timestep $t$
+                \State Update $\text{dec\_input}$ with ground-truth token (teacher forcing)
+            \EndFor
+            
+            \State Backpropagate gradients and update parameters
+        \EndFor
+        
+        \State \Comment{--- Validation ---}
+        \State Compute validation loss
+        
+        \If{validation loss improves}
+            \State Save checkpoint
+            \State Reset patience counter
+        \Else
+            \State Increment patience counter
+        \EndIf
+        
+        \If{patience counter reaches limit}
+            \State \textbf{break}
+        \EndIf
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Evaluation Metrics}
+
+We evaluate generated captions using corpus- and image-level metrics that measure exact matches, token overlap, and n-gram/LCS-based similarity. Let the validation set contain $N$ images. For image index $i$ let $\mathcal{R}_i = \{r_{i,1},\dots,r_{i,M_i}\}$ be the set of reference captions and let $\hat{y}_i$ be the single predicted caption produced by the model. Write $\mathrm{tok}(s)$ for the token sequence of a string $s$, and $|\cdot|$ for the number of tokens.
+
+\subsubsection{Exact-match Accuracy}
+The exact-match accuracy counts predictions that exactly match any reference (string equality after trivial normalization):
+\begin{equation}
+    \mathrm{Accuracy} \,=\, \frac{1}{N} \sum_{i=1}^{N} \mathbf{1}\bigl(\hat{y}_i \in \mathcal{R}_i\bigr)
+\end{equation}
+
+\subsubsection{Per-image Token Precision and Recall and Macro Averages}
+For a given image $i$ we define a per-image token precision $P_i$ and recall $R_i$ by comparing token counts between the predicted caption and a reference. In practice we choose the reference $r^*_i\in\mathcal{R}_i$ that maximizes an F$_1$ variant (best-match heuristic). Let $C_p$ and $C_r$ be the multisets (counters) of tokens in $\mathrm{tok}(\hat{y}_i)$ and $\mathrm{tok}(r^*_i)$ respectively, and write $\langle C_p \wedge C_r\rangle$ for the count of token-wise intersections. Then
+\begin{align}
+    P_i &= \frac{\langle C_p \wedge C_r\rangle}{|\mathrm{tok}(\hat{y}_i)| + \epsilon}, \\
+    R_i &= \frac{\langle C_p \wedge C_r\rangle}{|\mathrm{tok}(r^*_i)| + \epsilon},
+\end{align}
+where $\epsilon>0$ is a small constant to avoid division-by-zero. The macro-averaged precision and recall reported in the paper are the unweighted means over images:
+\begin{align}
+    \mathrm{MacroPrecision} &= \frac{1}{N} \sum_{i=1}^{N} P_i, \\
+    \mathrm{MacroRecall} &= \frac{1}{N} \sum_{i=1}^{N} R_i.
+\end{align}
+
+An image-level F$_1$ score can be formed as usual by $F_i = 2 P_i R_i / (P_i + R_i + \epsilon)$ and macro-F$_1$ is the mean of $F_i$ across images.
+
+\subsubsection{ROUGE-N}
+ROUGE--$n$ compares $n$-gram overlap between prediction and reference. For a prediction $\hat{y}_i$ and a chosen reference $r$ define the multiset of $n$-grams $G_n(\hat{y}_i)$ and $G_n(r)$. Let
+\begin{align}
+    \mathrm{match}_n(\hat{y}_i,r) &= \sum_{g \in G_n(\hat{y}_i)} \min\bigl(\mathrm{count}_{\hat{y}_i}(g),\,\mathrm{count}_{r}(g)\bigr), \\
+    P_{n}(\hat{y}_i,r) &= \frac{\mathrm{match}_n(\hat{y}_i,r)}{|G_n(\hat{y}_i)| + \epsilon}, \\
+    R_{n}(\hat{y}_i,r) &= \frac{\mathrm{match}_n(\hat{y}_i,r)}{|G_n(r)| + \epsilon}, \\
+    F_{n}(\hat{y}_i,r) &= \frac{2\,P_{n}(\hat{y}_i,r)\,R_{n}(\hat{y}_i,r)}{P_{n}(\hat{y}_i,r)+R_{n}(\hat{y}_i,r)+\epsilon}.
+\end{align}
+When multiple references exist we adopt the common ``best-reference'' strategy and take the maximum F$_n$ over $r\in\mathcal{R}_i$. The reported corpus ROUGE--$n$ is the mean of per-image best F$_n$ values across $i=1\dots N$.
+
+\subsubsection{ROUGE-L (LCS-based)}
+ROUGE-L uses the length of the Longest Common Subsequence (LCS) between token sequences. Define
+\begin{align}
+    \mathrm{LCS}(\hat{y}_i, r) &= \max\{\,\ell:\,\ell \text{ is length of a common subsequence between }\mathrm{tok}(\hat{y}_i)\text{ and }\mathrm{tok}(r)\,\}, \\
+    P_{L}(\hat{y}_i,r) &= \frac{\mathrm{LCS}(\hat{y}_i,r)}{|\mathrm{tok}(\hat{y}_i)| + \epsilon}, \\
+    R_{L}(\hat{y}_i,r) &= \frac{\mathrm{LCS}(\hat{y}_i,r)}{|\mathrm{tok}(r)| + \epsilon}, \\
+    F_{L}(\hat{y}_i,r) &= \frac{2\,P_{L}(\hat{y}_i,r)\,R_{L}(\hat{y}_i,r)}{P_{L}(\hat{y}_i,r)+R_{L}(\hat{y}_i,r)+\epsilon}.
+\end{align}
+As with ROUGE--$n$, we compute per-image ROUGE-L by selecting the reference $r\in\mathcal{R}_i$ that maximizes $F_{L}(\hat{y}_i,r)$ and report the corpus mean of these per-image F$_L$ scores.
+
+\subsubsection{Implementation notes}
+All metrics above are implemented using token-level counters and dynamic-programming (for LCS) in the evaluation module. To produce stable, reproducible metric values for validation we run deterministic decoding (greedy argmax) during metric computation; sampling-based decoding can be enabled separately for diversity analysis. Per-epoch metrics are computed on the validation split and stored alongside loss histories to produce the accuracy plot and other visualization figures included in the results directory.
