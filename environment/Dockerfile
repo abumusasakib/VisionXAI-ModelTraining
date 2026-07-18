@@ -42,6 +42,7 @@ RUN pip install --no-cache-dir \
     pangocairocffi==0.7.0 \
     pillow==10.4.0 \
     protobuf==3.20.0 \
+    h5py==3.11.0 \
     pycairo==1.26.1 \
     scikit-learn==1.3.2 \
     tqdm==4.67.1
