@@ -129,6 +129,7 @@ class XLSXCaptionParser(CaptionParser):
                         f"\n➡️  Parsing {os.path.basename(xlsx_file)} ({total_rows} rows)..."
                     )
 
+                    missing_images_count = 0
                     for idx, row in enumerate(rows[start_row:], start=1):
                         # Print progress every 500 rows or at the last row, using carriage return for single line.
                         if idx % 500 == 0 or idx == total_rows:
@@ -191,6 +192,13 @@ class XLSXCaptionParser(CaptionParser):
                                     caption_mapping.setdefault(img_path, []).append(
                                         formatted_caption
                                     )
+                            else:
+                                missing_images_count += 1
+                                if missing_images_count <= 5:
+                                    print(f"\n   ⚠️ Image not found: {img_path}")
+
+                    if missing_images_count > 0:
+                        print(f"\n   ⚠️ Total images not found on disk: {missing_images_count}")
 
         except zipfile.BadZipFile:
             print(f"\nError: {xlsx_file} is not a valid zip file.")
@@ -389,97 +397,196 @@ class JSONCaptionParser(CaptionParser):
         return caption_mapping
 
 
+class DatasetComponent(ABC):
+    """
+    Abstract Base Class representing a dataset component.
+    """
+    name: str = ""
+
+    @abstractmethod
+    def matches(self, filename: str) -> bool:
+        """
+        Returns True if the filename matches this dataset component's pattern.
+        """
+        pass
+
+    @abstractmethod
+    def extract(self, file_path: str, root: str, base_dir: str, validate_images: bool) -> Dict[str, List[str]]:
+        """
+        Extracts and maps captions for this dataset component.
+        """
+        pass
+
+
+class DatasetComponentFactory:
+    _registry = {}
+
+    @classmethod
+    def register(cls, name: str):
+        def decorator(subclass):
+            cls._registry[name] = subclass
+            subclass.name = name
+            return subclass
+        return decorator
+
+    @classmethod
+    def get_components(cls, enabled_names: Optional[List[str]] = None) -> List[DatasetComponent]:
+        if isinstance(enabled_names, str):
+            enabled_names = [enabled_names]
+        components = []
+        for name, subclass in cls._registry.items():
+            if enabled_names is None or name in enabled_names:
+                components.append(subclass())
+        return components
+
+    @classmethod
+    def get_all_names(cls) -> List[str]:
+        return list(cls._registry.keys())
+
+
+class BaseXLSXCaptionComponent(DatasetComponent):
+    """Base class for dataset components parsing Excel (.xlsx) caption files."""
+
+    def __init__(self, has_header: bool = True, sub_img_dir: str = "image"):
+        self.xlsx_parser = XLSXCaptionParser(has_header=has_header)
+        self.sub_img_dir = sub_img_dir
+
+    def _is_xlsx_caption_file(self, filename: str) -> bool:
+        lower = filename.lower().replace("\\", "/")
+        return lower.endswith(".xlsx") and "captioning" in lower
+
+    def extract(self, file_path: str, root: str, base_dir: str, validate_images: bool) -> Dict[str, List[str]]:
+        img_dir = os.path.join(root, self.sub_img_dir)
+        if not os.path.exists(img_dir):
+            img_dir = root
+        return self.xlsx_parser.extract(
+            file_path, images_path=img_dir, validate_images=validate_images
+        )
+
+
+@DatasetComponentFactory.register("bangla_image_captioning")
+class BanglaImageCaptioningComponent(BaseXLSXCaptionComponent):
+    def matches(self, filename: str) -> bool:
+        lower = filename.lower().replace("\\", "/")
+        return self._is_xlsx_caption_file(filename) and "image_captioning_dataset" not in lower
+
+
+@DatasetComponentFactory.register("image_captioning_dataset")
+class ImageCaptioningDatasetComponent(BaseXLSXCaptionComponent):
+    def matches(self, filename: str) -> bool:
+        lower = filename.lower().replace("\\", "/")
+        return self._is_xlsx_caption_file(filename) and "image_captioning_dataset" in lower
+
+
+
+
+@DatasetComponentFactory.register("ban_cap")
+class BanCapComponent(DatasetComponent):
+    def __init__(self):
+        self.csv_parser = CSVCaptionParser()
+
+    def matches(self, filename: str) -> bool:
+        lower_file = filename.lower()
+        return lower_file.endswith(".csv") and "ban-cap" in lower_file
+
+    def extract(self, file_path: str, root: str, base_dir: str, validate_images: bool) -> Dict[str, List[str]]:
+        img_dir = os.path.join(base_dir, "Flickr 8k Dataset", "Images")
+        if not os.path.exists(img_dir):
+            img_dir = base_dir
+        return self.csv_parser.extract(
+            file_path, images_path=img_dir, validate_images=validate_images
+        )
+
+
+@DatasetComponentFactory.register("banglaview")
+class BanglaViewComponent(DatasetComponent):
+    def __init__(self):
+        self.banglaview_xlsx_parser = XLSXCaptionParser(has_header=False)
+
+    def matches(self, filename: str) -> bool:
+        return filename.lower() == "banglaview_dataset.xlsx"
+
+    def extract(self, file_path: str, root: str, base_dir: str, validate_images: bool) -> Dict[str, List[str]]:
+        img_dir = os.path.join(base_dir, "flickr30k_images", "flickr30k_images")
+        if not os.path.exists(img_dir):
+            print(f"Warning: BanglaView image directory not found at {img_dir}. Skipping.")
+            return {}
+        return self.banglaview_xlsx_parser.extract(
+            file_path, images_path=img_dir, validate_images=validate_images
+        )
+
+
+@DatasetComponentFactory.register("banglalekha_image_captions")
+class BanglaLekhaImageCaptionsComponent(DatasetComponent):
+    def __init__(self):
+        self.json_parser = JSONCaptionParser()
+
+    def matches(self, filename: str) -> bool:
+        lower_file = filename.lower()
+        return lower_file.endswith(".json") and "captions" in lower_file
+
+    def extract(self, file_path: str, root: str, base_dir: str, validate_images: bool) -> Dict[str, List[str]]:
+        img_dir = os.path.join(root, "images")
+        if not os.path.exists(img_dir):
+            img_dir = os.path.join(base_dir, "rxxch9vw59.2", "images")
+        return self.json_parser.extract(
+            file_path, images_path=img_dir, validate_images=validate_images
+        )
+
+
 # ### Data Collector
 
 # The `collect_all_caption_data` function orchestrates the process of finding and parsing caption files across a given directory structure. It intelligently determines the correct parser and image directory for different file types.
 
 
 def collect_all_caption_data(
-    base_dir: str, validate_images: bool = True
+    base_dir: str,
+    validate_images: bool = True,
+    enabled_datasets: Optional[List[str]] = None,
 ) -> Dict[str, List[str]]:
     """
-    Walks through a base directory to find and extract caption data from XLSX and CSV files.
-    It identifies different types of caption files based on their names and extensions
-    and uses the appropriate parser.
+    Walks through a base directory to find and extract caption data from XLSX, CSV, and JSON files
+    using registered dataset components.
 
     Args:
         base_dir (str): The root directory to start searching for files.
         validate_images (bool, optional): If True, validates image paths during extraction. Defaults to True.
+        enabled_datasets (List[str], optional): List of dataset names to enable. If provided, all other
+                                                datasets are disabled for ablation studies.
 
     Returns:
         Dict[str, List[str]]: A consolidated dictionary of all found image-caption mappings.
     """
     all_captions: Dict[str, List[str]] = {}
-    xlsx_parser = XLSXCaptionParser(has_header=True)
-    csv_parser = CSVCaptionParser()
-    banglaview_xlsx_parser = XLSXCaptionParser(
-        has_header=False
-    )  # BanglaView has no header
-    json_parser = JSONCaptionParser()
+    components = DatasetComponentFactory.get_components(enabled_datasets)
 
     # Walk through the directory tree.
     print(f"🔍 Scanning directories in {base_dir}...")
+    try:
+        print(f"📂 Contents of {base_dir}: {os.listdir(base_dir)}")
+    except Exception as e:
+        print(f"⚠️ Error listing {base_dir}: {e}")
+    enabled_names = [comp.name for comp in components]
+    print(f"Dataset components enabled: {enabled_names}")
+
+    matched_files = 0
     for root, dirs, files in os.walk(base_dir):
-        # Indicate current directory being scanned.
-        # This can be noisy for deep hierarchies, consider removing for very large datasets.
-        # print(f"  📂 In directory: {root}")
-
         for file in files:
-            lower_file = file.lower()
             file_path = os.path.join(root, file)
-            captions: Dict[str, List[str]] = {}
-            img_dir: str = ""
-
-            # Process general XLSX files containing "captioning" in their name.
-            if lower_file.endswith(".xlsx") and "captioning" in lower_file:
-                img_dir = os.path.join(root, "image")
-                if not os.path.exists(img_dir):
-                    img_dir = root  # Fallback to the current directory if 'image' subfolder doesn't exist.
-                # print(f"Parsing XLSX: {file_path}") # This print is inside the parser's extract method
-                captions = xlsx_parser.extract(
-                    file_path, images_path=img_dir, validate_images=validate_images
-                )
-
-            # Process CSV files containing "ban-cap" in their name.
-            elif lower_file.endswith(".csv") and "ban-cap" in lower_file:
-                # Specific image directory structure for 'Flickr 8k Dataset'.
-                img_dir = os.path.join(base_dir, "Flickr 8k Dataset", "Images")
-                if not os.path.exists(img_dir):
-                    img_dir = base_dir  # Fallback to base_dir if the specific path isn't found.
-                # print(f"Parsing CSV: {file_path}") # This print is inside the parser's extract method
-                captions = csv_parser.extract(
-                    file_path, images_path=img_dir, validate_images=validate_images
-                )
-
-            # Process the specific "banglaview_dataset.xlsx" file.
-            elif lower_file == "banglaview_dataset.xlsx":
-                # Specific image directory structure for BanglaView.
-                img_dir = os.path.join(base_dir, "flickr30k_images", "flickr30k_images")
-                if not os.path.exists(img_dir):
-                    print(
-                        f"Warning: BanglaView image directory not found at {img_dir}. Skipping."
+            
+            for component in components:
+                if component.matches(file) or component.matches(file_path):
+                    matched_files += 1
+                    print(f"🎯 Matched file #{matched_files}: {file_path} using component '{component.name}'")
+                    captions = component.extract(
+                        file_path=file_path,
+                        root=root,
+                        base_dir=base_dir,
+                        validate_images=validate_images
                     )
-                    continue
-                # print(f"Parsing BanglaView XLSX: {file_path}") # This print is inside the parser's extract method
-                # BanglaView XLSX is known to have no header.
-                captions = banglaview_xlsx_parser.extract(
-                    file_path, images_path=img_dir, validate_images=validate_images
-                )
-            # Process the BanglaLekhaImageCaptions dataset.
-            elif lower_file.endswith(".json") and "captions" in lower_file:
-                # First check 'images' subdirectory relative to current file's root
-                img_dir = os.path.join(root, "images")
-                if not os.path.exists(img_dir):
-                    # Fallback to a specific path relative to base_dir if not found locally
-                    img_dir = os.path.join(base_dir, "rxxch9vw59.2", "images")
-                captions = json_parser.extract(
-                    file_path, images_path=img_dir, validate_images=validate_images
-                )
-            else:
-                continue  # Skip files that don't match any known caption format.
-
-            all_captions.update(
-                captions
-            )  # Merge new captions into the main dictionary.
+                    print(f"   → Extracted {len(captions)} valid mappings from {file}")
+                    all_captions.update(captions)
+                    break  # Found matching component, proceed to next file
 
     return all_captions
+
