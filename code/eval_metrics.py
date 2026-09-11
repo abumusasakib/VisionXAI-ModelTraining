@@ -391,23 +391,23 @@ class ModelEvaluator:
     @staticmethod
     def group_metrics_by_dataset(per_image: Dict[str, dict]) -> Dict[str, dict]:
         """
-        Group performance metrics segmented by dataset source component (CSE904 fairness_by_group).
+        Group performance metrics segmented by dataset source component (fairness_by_group).
         """
+        try:
+            from caption_parsers import DatasetComponentFactory
+        except ImportError:
+            from code.caption_parsers import DatasetComponentFactory
+
+        components = DatasetComponentFactory.get_components()
+
         groups = defaultdict(list)
         for img_path, d in per_image.items():
-            lower_path = img_path.lower()
-            if "rxxch9vw59" in lower_path:
-                comp_name = "banglalekha_image_captions"
-            elif "ban-cap" in lower_path:
-                comp_name = "ban_cap"
-            elif "image_captioning_dataset" in lower_path:
-                comp_name = "image_captioning_dataset"
-            elif "bangla image captioning" in lower_path:
-                comp_name = "bangla_image_captioning"
-            elif "banglaview" in lower_path:
-                comp_name = "banglaview"
-            else:
-                comp_name = "other"
+            file_basename = os.path.basename(img_path)
+            comp_name = "other"
+            for component in components:
+                if component.matches(file_basename) or component.matches(img_path):
+                    comp_name = component.name
+                    break
             groups[comp_name].append(d)
 
         segmented = {}
