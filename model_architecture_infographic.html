@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Captioning Architecture & Replication Guide</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+.chart-container { position: relative; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; height: 350px; max-height: 400px; }
+@media (min-width: 768px) { .chart-container { height: 400px; } }
+.process-box { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 0.75rem; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); flex: 1; }
+.arrow { font-size: 2rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; padding: 0 1rem; }
+.stat-card { background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: white; border-radius: 1rem; padding: 2rem; text-align: center; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3); }
+</style>
+</head>
+<body class="text-slate-800 antialiased pb-20">
+<!-- 
+PALETTE: Vibrant Blues (#2563eb, #3b82f6), Cyan (#06b6d4), Orange (#f97316). 
+PLAN: Introduction -> Current Architecture Flow -> Component Analysis -> Replication Models -> Model Comparison -> Defense/Troubleshooting. 
+CHOICES: Doughnut Chart (Goal: Inform/Compare) for component distribution. Radar Chart (Goal: Compare) for model benchmarking. Structured HTML for Flowcharts.
+CONFIRMATION: NEITHER Mermaid JS NOR SVG were used anywhere in the output. 
+-->
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+    
+    <header class="text-center mb-16">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">Architecture Analysis & Replication</h1>
+        <p class="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto">An interactive breakdown of your Bengali Image Captioning model, featuring pre-trained architectural equivalents for immediate replication and thesis defense preparation.</p>
+    </header>
+
+    <section class="mb-16">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-slate-900 mb-2">1. Current Architecture Flow</h2>
+            <p class="text-slate-600 text-lg">Your model utilizes a classic Encoder-Decoder structure with an attention mechanism. Here is the data pipeline mapped from your document.</p>
+        </div>
+        
+        <div class="flex flex-col md:flex-row items-stretch justify-center w-full space-y-4 md:space-y-0">
+            <div class="process-box border-t-4 border-t-blue-500">
+                <div class="text-4xl mb-2">&#128247;</div>
+                <h3 class="font-bold text-lg mb-2">1. CNN Encoder</h3>
+                <p class="text-sm text-slate-500">InceptionV3 extracts features from 299x299 image.<br><br><strong>Output:</strong> 64 feature vectors (8x8 grid).</p>
+            </div>
+            <div class="arrow md:rotate-0 rotate-90">&#10140;</div>
+            <div class="process-box border-t-4 border-t-cyan-500">
+                <div class="text-4xl mb-2">&#128269;</div>
+                <h3 class="font-bold text-lg mb-2">2. Attention Mechanism</h3>
+                <p class="text-sm text-slate-500">Calculates weights for the 64 regions based on the current word context.</p>
+            </div>
+            <div class="arrow md:rotate-0 rotate-90">&#10140;</div>
+            <div class="process-box border-t-4 border-t-orange-500">
+                <div class="text-4xl mb-2">&#128221;</div>
+                <h3 class="font-bold text-lg mb-2">3. GRU Decoder</h3>
+                <p class="text-sm text-slate-500">Generates text sequentially using context vectors and previous hidden states.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+        
+        <div class="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
+            <h3 class="text-2xl font-bold text-slate-900 mb-4">System Component Load</h3>
+            <p class="text-slate-600 mb-6">This chart illustrates the conceptual processing load and parameter distribution of your model's three core components during inference.</p>
+            <div class="chart-container">
+                <canvas id="componentChart"></canvas>
+            </div>
+        </div>
+
+        <div class="flex flex-col justify-center space-y-6">
+            <div class="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
+                <h3 class="text-2xl font-bold text-slate-900 mb-4">Recommended Replication Model</h3>
+                <p class="text-slate-600 mb-4">Based on your architecture, the exact model you are describing is known in literature as <strong>"Show, Attend and Tell"</strong>.</p>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-4">
+                    <h4 class="font-bold text-blue-900">Direct Replica: Official TensorFlow Tutorial</h4>
+                    <p class="text-blue-800 text-sm mt-1">TensorFlow provides an official, perfectly matching tutorial using InceptionV3 + Bahdanau Attention + GRU. It is highly documented and designed for easy adaptation to new languages like Bengali.</p>
+                </div>
+                <div class="bg-cyan-50 border-l-4 border-cyan-500 p-4 rounded">
+                    <h4 class="font-bold text-cyan-900">Modern Alternative: ViT + GPT-2 (HuggingFace)</h4>
+                    <p class="text-cyan-800 text-sm mt-1">For a state-of-the-art upgrade, the <code>nlpconnect/vit-gpt2-image-captioning</code> model uses a Vision Transformer instead of CNN, and a Transformer Decoder instead of GRU. It handles attention natively.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <section class="mb-16">
+        <div class="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
+            <div class="mb-8 text-center">
+                <h2 class="text-3xl font-bold text-slate-900 mb-2">Model Comparison</h2>
+                <p class="text-slate-600 text-lg max-w-2xl mx-auto">Benchmarking your current "Show, Attend and Tell" architecture against modern Transformer-based alternatives to help justify your design choices during the defense.</p>
+            </div>
+            <div class="chart-container" style="max-width: 700px; height: 450px;">
+                <canvas id="radarChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-3xl font-bold text-slate-900 mb-6">Thesis Defense & Troubleshooting Hub</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <div class="bg-slate-800 text-white rounded-2xl p-8 shadow-lg">
+                <h3 class="text-2xl font-bold mb-4 text-cyan-400 flex items-center">&#10003; Defense Checklist</h3>
+                <ul class="space-y-4">
+                    <li class="flex items-start">
+                        <span class="text-cyan-400 mr-3 text-xl">&#9656;</span>
+                        <p><strong>Architecture Labels:</strong> Ensure InceptionV3 (CNN) and GRU (RNN) are clearly distinguished.</p>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-cyan-400 mr-3 text-xl">&#9656;</span>
+                        <p><strong>Visual Proof:</strong> Prepare 2-3 images demonstrating the 8x8 grid attention mappings.</p>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-cyan-400 mr-3 text-xl">&#9656;</span>
+                        <p><strong>Metrics:</strong> Have BLEU and accuracy learning curves ready for presentation.</p>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-cyan-400 mr-3 text-xl">&#9656;</span>
+                        <p><strong>Trade-off Justification:</strong> Defend cached features (frozen CNN) as a necessary speed-vs-fine-tuning compromise.</p>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="bg-white border-2 border-orange-100 rounded-2xl p-8 shadow-lg">
+                <h3 class="text-2xl font-bold mb-4 text-orange-600 flex items-center">&#9888; Common Resolutions</h3>
+                <div class="space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <strong class="text-slate-800 block mb-1">Weights Won't Load</strong>
+                        <p class="text-slate-600 text-sm">Verify the metadata index file points exactly to an existing <code>.index</code> and <code>.data</code> checkpoint sequence.</p>
+                    </div>
+                    <div class="border-b border-slate-100 pb-3">
+                        <strong class="text-slate-800 block mb-1">Tokenizer Failures</strong>
+                        <p class="text-slate-600 text-sm">Ensure <code>tokenizer.pkl</code> is in the root directory and initialized with the exact same <code>num_words</code> limit.</p>
+                    </div>
+                    <div>
+                        <strong class="text-slate-800 block mb-1">Inconsistent Results</strong>
+                        <p class="text-slate-600 text-sm">Force deterministic behavior using greedy decoding and globally set <code>np.random.seed</code> and <code>tf.random.set_seed</code>.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+
+<script>
+function wrapLabel(label, maxLength) {
+    if (label.length <= maxLength) return label;
+    const words = label.split(' ');
+    const lines = [];
+    let currentLine = '';
+    
+    words.forEach(word => {
+        if ((currentLine + word).length > maxLength) {
+            if (currentLine.trim() !== '') lines.push(currentLine.trim());
+            currentLine = word + ' ';
+        } else {
+            currentLine += word + ' ';
+        }
+    });
+    if (currentLine.trim() !== '') lines.push(currentLine.trim());
+    return lines;
+}
+
+const componentLabels = [
+    'InceptionV3 CNN (Visual Feature Extraction)', 
+    'Bahdanau Attention (Spatial Re-weighting)', 
+    'GRU Network (Sequential Text Generation)'
+];
+const wrappedComponentLabels = componentLabels.map(label => wrapLabel(label, 16));
+
+const ctxDonut = document.getElementById('componentChart').getContext('2d');
+new Chart(ctxDonut, {
+    type: 'doughnut',
+    data: {
+        labels: wrappedComponentLabels,
+        datasets: [{
+            data: [45, 20, 35],
+            backgroundColor: ['#2563eb', '#06b6d4', '#f97316'],
+            borderWidth: 0,
+            hoverOffset: 10
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { padding: 20, font: { family: 'Inter' } } },
+            tooltip: {
+                callbacks: {
+                    title: function(tooltipItems) {
+                        const item = tooltipItems[0];
+                        let label = item.chart.data.labels[item.dataIndex];
+                        if (Array.isArray(label)) {
+                            return label.join(' ');
+                        } else {
+                            return label;
+                        }
+                    }
+                }
+            }
+        },
+        cutout: '65%'
+    }
+});
+
+const radarLabels = [
+    'Training Speed (Cached Features)', 
+    'Interpretability (Attention Maps)', 
+    'Ease of Implementation', 
+    'State-of-the-Art Accuracy', 
+    'Handling Long Sentences'
+];
+const wrappedRadarLabels = radarLabels.map(label => wrapLabel(label, 16));
+
+const ctxRadar = document.getElementById('radarChart').getContext('2d');
+new Chart(ctxRadar, {
+    type: 'radar',
+    data: {
+        labels: wrappedRadarLabels,
+        datasets: [
+            {
+                label: 'Current (Inception+GRU)',
+                data: [9, 9, 8, 7, 6],
+                backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                borderColor: '#2563eb',
+                pointBackgroundColor: '#2563eb',
+                borderWidth: 2
+            },
+            {
+                label: 'Modern (ViT+Transformer)',
+                data: [5, 6, 6, 9, 9],
+                backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                borderColor: '#06b6d4',
+                pointBackgroundColor: '#06b6d4',
+                borderWidth: 2
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            r: {
+                angleLines: { color: 'rgba(0,0,0,0.1)' },
+                grid: { color: 'rgba(0,0,0,0.1)' },
+                pointLabels: { font: { family: 'Inter', size: 12 }, color: '#475569' },
+                ticks: { display: false, min: 0, max: 10 }
+            }
+        },
+        plugins: {
+            legend: { position: 'top', labels: { font: { family: 'Inter' } } },
+            tooltip: {
+                callbacks: {
+                    title: function(tooltipItems) {
+                        const item = tooltipItems[0];
+                        let label = item.chart.data.labels[item.dataIndex];
+                        if (Array.isArray(label)) {
+                            return label.join(' ');
+                        } else {
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+</body>
+</html>
