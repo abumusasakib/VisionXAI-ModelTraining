@@ -30,24 +30,27 @@ _ABSTRACT_TERMS = {
 }
 
 
-def _normalize_caption_for_selection(caption: str) -> str:
+def normalize_caption_for_selection(caption: str) -> str:
     """Normalize caption text for deterministic filtering and duplicate checks."""
     return normalize_bengali_text(caption)
 
 
-def _caption_tokens(caption: str) -> List[str]:
+def caption_tokens(caption: str) -> List[str]:
+    """Tokenize caption after Bengali normalization."""
     return tokenize(normalize_bengali_text(caption))
 
 
-def _is_repetitive_caption(tokens: List[str], repetition_threshold: float = 0.66) -> bool:
+def is_repetitive_caption(tokens: List[str], repetition_threshold: float = 0.66) -> bool:
+    """Check if token list exhibits excessive repetitive degeneration."""
     if not tokens:
         return True
     unique_ratio = len(set(tokens)) / len(tokens)
     return unique_ratio < (1.0 - repetition_threshold)
 
 
-def _caption_quality_score(caption: str) -> float:
-    tokens = _caption_tokens(caption)
+def caption_quality_score(caption: str) -> float:
+    """Compute heuristic quality score for a Bengali caption."""
+    tokens = caption_tokens(caption)
     token_count = len(tokens)
     if token_count == 0:
         return -100.0
@@ -64,7 +67,7 @@ def _caption_quality_score(caption: str) -> float:
     else:
         score -= 2.0
 
-    if _is_repetitive_caption(tokens):
+    if is_repetitive_caption(tokens):
         score -= 4.0
 
     bengali_chars = sum(1 for ch in caption if "\u0980" <= ch <= "\u09ff")
@@ -105,16 +108,16 @@ def select_top_captions_for_image(captions: List[str], max_captions: int = 2) ->
     fallback: List[Tuple[str, List[str], float, int]] = []
     seen = set()
     for index, caption in enumerate(captions or []):
-        norm_caption = _normalize_caption_for_selection(caption)
+        norm_caption = normalize_caption_for_selection(caption)
         if not norm_caption:
             continue
-        tokens = _caption_tokens(norm_caption)
+        tokens = caption_tokens(norm_caption)
         duplicate_key = " ".join(tokens).casefold()
         if duplicate_key in seen:
             continue
         seen.add(duplicate_key)
 
-        score = _caption_quality_score(norm_caption)
+        score = caption_quality_score(norm_caption)
         item = (norm_caption, tokens, score, index)
         fallback.append(item)
         if score <= -6.0:
