@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from eval_metrics import normalize_bengali_text, tokenize, token_jaccard
 
