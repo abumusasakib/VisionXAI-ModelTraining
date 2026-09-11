@@ -32,12 +32,7 @@ _ABSTRACT_TERMS = {
 
 def _normalize_caption_for_selection(caption: str) -> str:
     """Normalize caption text for deterministic filtering and duplicate checks."""
-    if caption is None:
-        return ""
-    caption = unicodedata.normalize("NFC", str(caption)).strip()
-    caption = re.sub(r"\s+", " ", caption)
-    caption = re.sub(r"([।,.!?])\1+", r"\1", caption)
-    return caption
+    return normalize_bengali_text(caption)
 
 
 def _caption_tokens(caption: str) -> List[str]:
