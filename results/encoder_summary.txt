@@ -2,10 +2,13 @@ Model: "cnn__encoder"
 _________________________________________________________________
  Layer (type)                Output Shape              Param #   
 =================================================================
- dense (Dense)               multiple                  524544    
+ roi_projection (Dense)      multiple                  524544    
+                                                                 
+ roi_layer_norm (LayerNormal  multiple                 512       
+ ization)                                                        
                                                                  
 =================================================================
-Total params: 524,544
-Trainable params: 524,544
+Total params: 525,056
+Trainable params: 525,056
 Non-trainable params: 0
 _________________________________________________________________

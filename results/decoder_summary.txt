@@ -6,9 +6,9 @@ _________________________________________________________________
                                                                  
  gru (GRU)                   multiple                  1575936   
                                                                  
- dense_1 (Dense)             multiple                  262656    
+ dense (Dense)               multiple                  262656    
                                                                  
- dense_2 (Dense)             multiple                  5130513   
+ dense_1 (Dense)             multiple                  5130513   
                                                                  
  bahdanau_attention (Bahdana  multiple                 394753    
  uAttention)                                                     
