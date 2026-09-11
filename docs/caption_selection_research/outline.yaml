@@ -1,0 +1,66 @@
+topic: Selecting two captions per image for Bangla image captioning training
+context:
+  source_dataset_tree: "D:/courses/graduate project/xai new project/final project/VisionXAI-Utilities/dataset_directory_tree/directory_tree.md"
+  target_project: "VisionXAI-ModelTraining"
+  problem: "Some datasets provide a variable or larger number of captions per image, but the training set will be normalized to exactly two captions per image."
+dataset_observations:
+  bangla_image_captioning:
+    validated_images: 1146
+    captions_per_image: "min=2, median=5.0, avg=5.68, max=15"
+    implication: "Needs caption down-selection."
+  ban_cap:
+    validated_images: 8091
+    captions_per_image: "exactly 5"
+    implication: "Needs caption down-selection."
+  image_captioning_dataset:
+    validated_images: 149
+    captions_per_image: "exactly 5"
+    implication: "Needs caption down-selection if included, but prior quality notes suggest excluding or treating cautiously."
+  rxxch9vw59_2:
+    validated_images: 9154
+    captions_per_image: "exactly 2"
+    implication: "Already matches the target policy."
+recommended_policy:
+  name: "quality-first diverse top-2 selection"
+  summary: "For each image, filter unusable captions, score remaining captions for visual grounding and language quality, then choose the best pair that is both high-quality and meaningfully different."
+  selection_steps:
+    - "Normalize text: Unicode NFC, trim whitespace, remove duplicate punctuation, and preserve Bengali vowel signs and combining marks."
+    - "Remove exact and near-duplicate captions after normalization."
+    - "Reject captions that are empty, too short to describe the image, too long/noisy, mostly punctuation, or boilerplate."
+    - "Reject or penalize abstract/poetic captions that do not describe visible entities, attributes, actions, or scene relations."
+    - "Score captions using a weighted heuristic: visual concreteness, noun/object coverage, action/relationship presence, moderate length, Bengali script validity, and dataset-specific reliability."
+    - "Select caption 1 as the highest-scoring caption."
+    - "Select caption 2 as the highest-scoring remaining caption with sufficient lexical difference from caption 1."
+    - "If all remaining captions are near-duplicates, keep the second-best caption rather than dropping the image."
+    - "If an image already has exactly two valid captions, keep both unless one fails quality filters."
+  tie_breakers:
+    - "Prefer captions with concrete objects and attributes over generic scene statements."
+    - "Prefer captions that add new information compared with the first selected caption."
+    - "Prefer captions from cleaner datasets when scores are equal."
+    - "Use a deterministic hash or fixed random seed only as the final tie-breaker."
+implementation_note: "This policy can be implemented in caption_parsers.py after caption extraction and before tokenization, or as a separate preprocessing utility that exports a consolidated two-caption XLSX/JSON file."
+research_items:
+  - item: "Random top-2 selection"
+    recommendation: "Not recommended except as a baseline."
+    reason: "Simple but can preserve near-duplicates or noisy captions."
+  - item: "First two captions"
+    recommendation: "Not recommended."
+    reason: "Depends on arbitrary annotation order and ignores caption quality."
+  - item: "Shortest or longest captions"
+    recommendation: "Not recommended alone."
+    reason: "Length is only a weak proxy; short captions may be generic and long captions may be noisy."
+  - item: "Quality-only top-2"
+    recommendation: "Acceptable but incomplete."
+    reason: "Can select two very similar captions, reducing caption diversity."
+  - item: "Quality plus diversity top-2"
+    recommendation: "Recommended."
+    reason: "Balances image-text alignment with linguistic/semantic coverage."
+execution:
+  batch_size: 1
+  items_per_agent: 5
+  output_dir: "./caption_selection_research/results"
+sources:
+  - "https://papers.neurips.cc/paper_files/paper/2023/file/45e604a3e33d10fba508e755faa72345-Paper-Datasets_and_Benchmarks.pdf"
+  - "https://arxiv.org/html/2502.13898v1"
+  - "https://arxiv.org/abs/1812.08126"
+  - "https://arxiv.org/abs/2307.16686"

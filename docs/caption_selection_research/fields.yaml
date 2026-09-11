@@ -1,0 +1,29 @@
+fields:
+  - name: dataset_context
+    description: "Which source dataset the image-caption pair comes from and how many captions are available for that image."
+    detail_level: moderate
+  - name: caption_validity
+    description: "Whether the caption is non-empty, readable, not duplicate, and structurally usable for tokenizer training."
+    detail_level: detailed
+  - name: visual_grounding
+    description: "Whether the caption describes visible objects, people, attributes, actions, spatial relations, or scene elements."
+    detail_level: detailed
+  - name: linguistic_quality
+    description: "Whether the Bengali caption is fluent enough, avoids corrupted text, avoids excessive repetition, and preserves meaningful Bengali characters."
+    detail_level: detailed
+  - name: diversity_from_first_caption
+    description: "How much the candidate second caption adds beyond the first selected caption, measured by token overlap, unique nouns, attributes, or actions."
+    detail_level: detailed
+  - name: length_control
+    description: "Whether the caption length is neither too short/generic nor too long/noisy for sequence training."
+    detail_level: moderate
+  - name: deterministic_tie_breaking
+    description: "How ties are resolved reproducibly so preprocessing is stable across runs."
+    detail_level: brief
+  - name: fallback_behavior
+    description: "What to do when an image has only two captions, one caption, duplicate captions, or no caption passing quality filters."
+    detail_level: moderate
+uncertain:
+  - "Exact Bengali POS tagging quality available in the current project environment."
+  - "Whether CLIP-style image-text similarity will be available for Bangla captions without adding a multilingual model dependency."
+  - "Whether image_captioning_dataset will remain excluded or be retained with strict filtering."
