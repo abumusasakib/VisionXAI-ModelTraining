@@ -9,20 +9,22 @@ The training process for the image captioning model is structured around iterati
     The model is trained on a total of \textbf{18,542 image--caption pairs}, where each image is associated with multiple Bengali textual descriptions. These pairs provide a rich multimodal dataset that grounds visual content in natural-language semantics.
 
     \item \textbf{Training Configuration:}
-    Training was conducted for a maximum of \textbf{100 epochs}, with \textbf{early stopping (patience = 5)} to prevent overfitting. A batch size of $B = 1$ was used, resulting in 18,542 parameter update steps per epoch.
+    Training was conducted for a maximum of \textbf{100 epochs}, with \textbf{early stopping (patience = 10)} to prevent overfitting. The training loop also applies a simple learning-rate reduction on plateau (factor $=0.5$ after $3$ epochs without improvement, with a floor $\text{MIN\_LR}=10^{-6}$). A batch size of $B = 16$ was used (reduced from larger sizes to avoid OOM), as implemented in the code.
 
-    \item \textbf{Total Iterations:}
-    The total number of training iterations ($\mathcal{I}_{\text{total}}$) is computed as:
+    \item \textbf{Steps per Epoch and Total Iterations:}
+    The number of parameter-update steps per epoch is computed in the training script using integer division: $\text{StepsPerEpoch}=\lfloor N_{\text{train}} / B\rfloor$ where $N_{\text{train}}$ is the number of training caption samples. For $N_{\text{train}}=18,542$ and $B=16$ this yields
     \begin{equation}
-        \mathcal{I}_{\text{total}} = \text{Steps per Epoch} \times \text{Number of Epochs}
+        \text{StepsPerEpoch} = \left\lfloor\frac{18,542}{16}\right\rfloor = 1,158
     \end{equation}
-    
-    Substituting the dataset-specific parameters yields:
+
+    Hence the nominal total number of parameter-update operations for the configured $100$ epochs is approximately:
     \begin{equation}
-        \mathcal{I}_{\text{total}} = 18,542 \times 100 = 1,854,200
+        \mathcal{I}_{\text{total}} = \text{StepsPerEpoch} \times \text{EPOCHS} = 1,158 \times 100 = 115{,}800
     \end{equation}
+
+    Note: this matches the implementation's use of floor division; an alternative convention is to use the ceiling of the division which would yield $1,159$ steps per epoch and a slightly larger total.
+
     
-    Thus, complete training comprises approximately \textbf{1.85 million} update operations before early stopping.
 
     \item \textbf{Loss Function:}
     The learning objective minimizes the \textit{sparse categorical cross-entropy} (SCCE) loss over all time steps in each generated caption. Given a target sequence of length $T$, the loss is defined as:
@@ -109,6 +111,25 @@ The architecture consists of an encoder--decoder pipeline designed to translate 
     \item \textbf{Caption Length:} The average caption length is approximately \textbf{38 tokens}, capturing detailed descriptions of image content.
 \end{itemize}
 
+\subsubsection{Notation and Symbols}
+\label{sec:notation}
+To improve readability we summarize the mathematical symbols used in the architecture below:
+\begin{itemize}
+    \item \textbf{B}: batch size (number of images per training step).
+    \item \textbf{K}: number of image regions (ROIs) per image (e.g., $K=64$ for an $8\times 8$ grid).
+    \item \textbf{d}, \textbf{d'}: input ROI feature dimensionality and encoder output dimensionality respectively.
+    \item $\mathbf{X} \in \mathbb{R}^{B\times K\times d}$: input ROI feature tensor (per-batch).
+    \item $\mathbf{F} \in \mathbb{R}^{B\times K\times d'}$: encoder-transformed features.
+    \item $f_i$: the $i$-th region feature vector (a length-$d'$ vector).
+    \item $\alpha_{t,i}$: attention weight on region $i$ at decoding timestep $t$ (scalar, non-negative, \(\sum_i\alpha_{t,i}=1\)).
+    \item $c_t$: context vector at timestep $t$, computed as the weighted sum $c_t=\sum_i\alpha_{t,i} f_i$.
+    \item $x_t$: embedding of the previous token (input to the decoder at time $t$); $z_t=[c_t; x_t]$ denotes concatenation.
+    \item $h_t$: decoder hidden state at timestep $t$; $o_t$ denotes the GRU output used before the final linear layer.
+    \item $p_t$: probability distribution over the vocabulary at timestep $t$ (output of softmax on logits).
+    \item $T$: maximum caption length (number of timesteps considered during training/evaluation).
+    \item $m_t$: binary mask (1 for real tokens, 0 for padding) used to exclude padded positions from loss/metrics.
+\end{itemize}
+
 \subsubsection{Encoder: ROI Feature Encoder}
 
 The encoder maps Region-of-Interest (ROI) feature tensors into a normalized embedding space. Formally:
@@ -149,54 +170,71 @@ where $p_t$ is the probability distribution over the next word.
 The mask $m_t$ ensures that padding tokens do not contribute to the loss.
 
 \subsection{Training Algorithm}
-
 The complete training algorithm is summarized in Algorithm~\ref{alg:training}.
 
-\begin{algorithm}
+\begin{algorithm}[htbp]
 \caption{Image Captioning Model Training}
 \label{alg:training}
 \begin{algorithmic}[1]
-    \State Initialize encoder, decoder, optimizer, checkpoint manager
-    \State Set $\text{best\_val\_loss} = \infty$, $\text{patience\_counter} = 0$
-    
-    \For{$\text{epoch} = 1$ to $\text{EPOCHS}$}
-        \State Reset training and validation loss trackers
-        
-        \State \Comment{--- Training ---}
-        \For{$(\text{img\_tensor}, \text{target})$ in $\text{training\_set}$}
-            \State Initialize decoder hidden state
-            \State Set decoder input = $\langle\text{start}\rangle$
-            \State Encode image: $\text{features} = \text{Encoder}(\text{img\_tensor})$
-            
-            \For{$t = 1$ to $T$}
-                \State Generate predictions via Decoder
-                \State Compute loss for timestep $t$
-                \State Update $\text{dec\_input}$ with ground-truth token (teacher forcing)
+    \State \textbf{Initialize:} encoder, decoder, optimizer (Adam), tokenizer, checkpoint managers
+    \State \textbf{Set:} $\text{best\_val\_loss}=\infty$, $\text{wait}=0$, $\text{wait\_lr}=0$
+    \State \textbf{Hyperparameters:} EPOCHS, BATCH\_SIZE, patience, LR\_REDUCE\_FACTOR, LR\_REDUCE\_PATIENCE, MIN\_LR
+    \For{$\text{epoch}=1$ to EPOCHS}
+        \State Reset: $\text{total\_train\_loss}=0$, $\text{total\_val\_loss}=0$
+        \State \textbf{// Training Phase}
+        \For{each batch $(\text{img\_tensor},\,\text{target})$ in training set}
+            \State $\text{hidden} \gets \text{decoder.reset\_state}(\text{batch\_size})$
+            \State $\text{dec\_input} \gets \langle\text{start}\rangle$; $\text{features} \gets \text{Encoder}(\text{img\_tensor})$; $\text{loss}=0$
+            \For{$t=1$ to $T$}
+                \State $\text{predictions},\,\text{hidden},\,\_ \gets \text{Decoder}(\text{dec\_input},\,\text{features},\,\text{hidden})$
+                \State $\text{loss} \;+\!\!= \mathcal{L}_{\text{timestep}}(\text{target}_{:,t},\,\text{predictions})$ (masked)
+                \State $\text{dec\_input} \gets \text{target}_{:,t}$ \Comment{teacher forcing}
             \EndFor
-            
-            \State Backpropagate gradients and update parameters
+            \State Compute $\text{batch\_total} = \text{loss} / T$; apply gradients; $\text{total\_train\_loss} \;+\!\!= \text{batch\_total}$
         \EndFor
-        
-        \State \Comment{--- Validation ---}
-        \State Compute validation loss
-        
-        \If{validation loss improves}
-            \State Save checkpoint
-            \State Reset patience counter
+        \State $\text{epoch\_train\_loss} \gets \text{total\_train\_loss} / \text{num\_steps}$
+        \State \textbf{// Validation Phase}
+        \For{each batch in validation set}
+            \State Compute validation loss (no gradients); $\text{total\_val\_loss} \;+\!\!= \text{batch\_val\_loss}$
+        \EndFor
+        \State $\text{epoch\_val\_loss} \gets \text{total\_val\_loss} / \text{val\_steps}$
+        \State \textbf{// Metrics Computation}
+        \State Perform batched greedy decoding on validation set
+        \State Compute metrics: accuracy, precision, recall, F1, ROUGE, token Jaccard
+        \State Save metrics (CSV, plots) and generate report snippets
+        \State \textbf{// Checkpoint \& Learning Rate Management}
+        \If{$\text{epoch\_val\_loss} < \text{best\_val\_loss} - \text{MIN\_DELTA}$}
+            \State $\text{best\_val\_loss} \gets \text{epoch\_val\_loss}$; $\text{wait} \gets 0$; $\text{wait\_lr} \gets 0$
+            \State Save best checkpoint and model summaries
         \Else
-            \State Increment patience counter
+            \State $\text{wait} \;+\!\!= 1$; $\text{wait\_lr} \;+\!\!= 1$
+            \If{$\text{wait\_lr} \ge \text{LR\_REDUCE\_PATIENCE}$}
+                \State $\text{lr} \gets \max(\text{lr} \times \text{LR\_REDUCE\_FACTOR},\,\text{MIN\_LR})$; $\text{wait\_lr} \gets 0$
+            \EndIf
         \EndIf
-        
-        \If{patience counter reaches limit}
-            \State \textbf{break}
+        \State Save regular checkpoint (every 5 epochs)
+        \If{$\text{wait} \ge \text{patience}$}
+            \State \textbf{break} \Comment{early stopping triggered}
         \EndIf
     \EndFor
+    \State Restore best checkpoint; save best-model metadata
 \end{algorithmic}
 \end{algorithm}
 
 \subsection{Evaluation Metrics}
 
 We evaluate generated captions using corpus- and image-level metrics that measure exact matches, token overlap, and n-gram/LCS-based similarity. Let the validation set contain $N$ images. For image index $i$ let $\mathcal{R}_i = \{r_{i,1},\dots,r_{i,M_i}\}$ be the set of reference captions and let $\hat{y}_i$ be the single predicted caption produced by the model. Write $\mathrm{tok}(s)$ for the token sequence of a string $s$, and $|\cdot|$ for the number of tokens.
+
+\paragraph{Notation used in metrics}
+\begin{itemize}
+    \item $N$: number of images in the validation set.
+    \item $\mathcal{R}_i = \{r_{i,1},\dots,r_{i,M_i}\}$: the set of reference captions for image $i$.
+    \item $\hat{y}_i$: the model's predicted caption for image $i$ (usually the result of greedy decoding); $\mathrm{tok}(\cdot)$ maps a string to its token sequence and $|\cdot|$ denotes token count.
+    \item $\epsilon$: a small positive constant added to denominators to avoid division-by-zero in metric definitions.
+    \item $C_p$, $C_r$: multisets (counters) of tokens in the predicted caption and the chosen reference respectively; $\langle C_p \wedge C_r\rangle$ denotes the sum of per-token minima (i.e., token-wise intersection count).
+    \item $G_n(s)$: multiset of $n$-grams extracted from string $s$; $\mathrm{match}_n(\hat{y}_i,r)$ counts clipped matching $n$-grams between prediction and reference.
+    \item $\mathrm{LCS}(\hat{y}_i,r)$: the length of the Longest Common Subsequence between token sequences of the prediction and reference (used in ROUGE-L computations).
+\end{itemize}
 
 \subsubsection{Exact-match Accuracy}
 The exact-match accuracy counts predictions that exactly match any reference (string equality after trivial normalization):

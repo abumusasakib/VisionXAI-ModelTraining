@@ -25,15 +25,15 @@ This project implements an attention-based image-captioning model using TensorFl
 
 1. Load cached image feature `.npy` and tokenized caption sequences and build a `tf.data.Dataset`.
 2. For each epoch:
-	 - For each training batch:
-		 - Pass features through `CNN_Encoder` to get encoded features.
-		 - Initialize decoder hidden state (zeros) and decoder input as `<start>` tokens.
-		 - Use teacher forcing: at time step t feed the ground-truth token t as the next decoder input.
-		 - Compute per-step logits, compute Sparse Categorical Crossentropy loss (masking pad tokens), and accumulate gradients with `tf.GradientTape`.
-		 - Apply gradients to encoder + decoder trainable variables using `tf.keras.optimizers.Adam()`.
-	 - Run validation loop (no optimizer step) and compute validation loss.
-	 - Save checkpoint periodically and, if validation loss improves, save best model and update `best_model_metadata.json`.
-	 - (With the metrics extension) run a deterministic (greedy) batched evaluation over the validation set to compute token- and sentence-level metrics and save them per epoch.
+  - For each training batch:
+   - Pass features through `CNN_Encoder` to get encoded features.
+   - Initialize decoder hidden state (zeros) and decoder input as `<start>` tokens.
+   - Use teacher forcing: at time step t feed the ground-truth token t as the next decoder input.
+   - Compute per-step logits, compute Sparse Categorical Crossentropy loss (masking pad tokens), and accumulate gradients with `tf.GradientTape`.
+   - Apply gradients to encoder + decoder trainable variables using `tf.keras.optimizers.Adam()`.
+  - Run validation loop (no optimizer step) and compute validation loss.
+  - Save checkpoint periodically and, if validation loss improves, save best model and update `best_model_metadata.json`.
+  - (With the metrics extension) run a deterministic (greedy) batched evaluation over the validation set to compute token- and sentence-level metrics and save them per epoch.
 
 **Loss, optimizer, and regularization**
 
@@ -44,8 +44,8 @@ This project implements an attention-based image-captioning model using TensorFl
 
 - **generate_caption / evaluate:** For a single image the pipeline assembles an initial decoder input (`<start>`), runs the decoder step-by-step, collects attention weights for each step, and stops when `<end>` token is produced or `max_length` is reached.
 - **Modes:**
-	- `sample` (default): uses `tf.random.categorical` to sample next token (good for diverse human-facing captions).
-	- `greedy`: uses `argmax` for deterministic evaluation and metric computation (recommended for computing BLEU/ROUGE/accuracy). The training-with-metrics helper uses greedy decoding for per-epoch metrics.
+ 	- `sample` (default): uses `tf.random.categorical` to sample next token (good for diverse human-facing captions).
+ 	- `greedy`: uses `argmax` for deterministic evaluation and metric computation (recommended for computing BLEU/ROUGE/accuracy). The training-with-metrics helper uses greedy decoding for per-epoch metrics.
 
 **Metrics collected**
 
@@ -89,23 +89,23 @@ This project implements an attention-based image-captioning model using TensorFl
 ```powershell
 # from within the notebook environment (Python):
 per_epoch_metrics = run_training_loop(
-		start_epoch,
-		EPOCHS,
-		dataset,
-		val_dataset,
-		num_steps,
-		val_steps,
-		patience,
-		ckpt_manager,
-		best_ckpt_path,
-		best_metadata_path,
-		tokenizer_path,
-		encoder=encoder,
-		decoder=decoder,
-		optimizer=optimizer,
-		tokenizer=tokenizer,
-		max_length=max_length,
-		top_k_macro=500,
+  start_epoch,
+  EPOCHS,
+  dataset,
+  val_dataset,
+  num_steps,
+  val_steps,
+  patience,
+  ckpt_manager,
+  best_ckpt_path,
+  best_metadata_path,
+  tokenizer_path,
+  encoder=encoder,
+  decoder=decoder,
+  optimizer=optimizer,
+  tokenizer=tokenizer,
+  max_length=max_length,
+  top_k_macro=500,
 )
 ```
 
@@ -124,11 +124,3 @@ per_epoch_metrics = run_training_loop(
 
 ---
 
-File: [model_info.md](model_info.md)
-
-If you want, I can also:
-- Add a clean architecture SVG diagram file under `/docs/`.
-- Insert a short README snippet into the notebook top cells describing how to enable per-epoch metrics and plotting.
-- Draft a 1-page slide summarizing the model for presentations.
-
-Which of these would you like next?
