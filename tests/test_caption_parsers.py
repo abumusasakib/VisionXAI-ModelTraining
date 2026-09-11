@@ -166,3 +166,63 @@ def test_export_captions_to_xlsx(tmp_path):
     assert read_mapping[str(img2)] == ["Caption 3"]
 
 
+def test_csv_caption_parser(tmp_path):
+    """Verify CSVCaptionParser extracts image paths and captions accurately."""
+    from caption_parsers import CSVCaptionParser
+
+    img_file = tmp_path / "sample.jpg"
+    img_file.write_bytes(b"dummy")
+
+    csv_file = tmp_path / "captions.csv"
+    csv_file.write_text("caption_id,bengali_caption\nsample.jpg,একটি সুন্দর নদী\nsample.jpg,নদীর পাড়ে সবুজ ঘাস\n", encoding="utf-8")
+
+    parser = CSVCaptionParser()
+    mapping = parser.extract(str(csv_file), images_path=str(tmp_path), validate_images=True)
+
+    assert str(img_file) in mapping
+    assert len(mapping[str(img_file)]) == 2
+    assert "একটি সুন্দর নদী" in mapping[str(img_file)]
+
+
+def test_json_caption_parser(tmp_path):
+    """Verify JSONCaptionParser extracts image paths and captions from json structures."""
+    import json
+    from caption_parsers import JSONCaptionParser
+
+    img_file = tmp_path / "img1.jpg"
+    img_file.write_bytes(b"dummy")
+
+    data = [
+        {"filename": "img1.jpg", "caption": ["প্রথম ক্যাপশন", "দ্বিতীয় ক্যাপশন"]}
+    ]
+    json_file = tmp_path / "captions.json"
+    json_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    parser = JSONCaptionParser()
+    mapping = parser.extract(str(json_file), images_path=str(tmp_path), validate_images=True)
+
+    assert str(img_file) in mapping
+    assert "প্রথম ক্যাপশন" in mapping[str(img_file)][0]
+
+
+def test_collect_all_caption_data_export_integration(tmp_path):
+    """Verify collect_all_caption_data automatically exports to export_xlsx_path when specified."""
+    img_dir = tmp_path / "Flickr 8k Dataset" / "Images"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    (img_dir / "sample.jpg").write_bytes(b"dummy")
+
+    (tmp_path / "ban-cap_data.csv").write_text("caption_id,bengali_caption\nsample.jpg,টেস্ট ক্যাপশন\n", encoding="utf-8")
+
+    export_path = str(tmp_path / "auto_exported.xlsx")
+    res = collect_all_caption_data(
+        base_dir=str(tmp_path),
+        validate_images=True,
+        enabled_datasets=["ban_cap"],
+        export_xlsx_path=export_path,
+    )
+
+    assert os.path.exists(export_path)
+    assert len(res) > 0
+
+
+
