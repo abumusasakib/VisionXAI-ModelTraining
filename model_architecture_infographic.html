@@ -27,13 +27,13 @@ CONFIRMATION: NEITHER Mermaid JS NOR SVG were used anywhere in the output.
     
     <header class="text-center mb-16">
         <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">Architecture Analysis & Replication</h1>
-        <p class="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto">An interactive breakdown of your Bengali Image Captioning model, featuring pre-trained architectural equivalents for immediate replication and thesis defense preparation.</p>
+        <p class="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto">An interactive breakdown of the Bengali Image Captioning model, featuring pre-trained architectural equivalents for immediate replication and thesis defense preparation.</p>
     </header>
 
     <section class="mb-16">
         <div class="mb-8">
             <h2 class="text-3xl font-bold text-slate-900 mb-2">1. Current Architecture Flow</h2>
-            <p class="text-slate-600 text-lg">Your model utilizes a classic Encoder-Decoder structure with an attention mechanism. Here is the data pipeline mapped from your document.</p>
+            <p class="text-slate-600 text-lg">The model utilizes a classic Encoder-Decoder structure with an attention mechanism. Here is the data pipeline.</p>
         </div>
         
         <div class="flex flex-col md:flex-row items-stretch justify-center w-full space-y-4 md:space-y-0">
@@ -60,8 +60,8 @@ CONFIRMATION: NEITHER Mermaid JS NOR SVG were used anywhere in the output.
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
         
         <div class="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
-            <h3 class="text-2xl font-bold text-slate-900 mb-4">System Component Load</h3>
-            <p class="text-slate-600 mb-6">This chart illustrates the conceptual processing load and parameter distribution of your model's three core components during inference.</p>
+            <h3 class="text-2xl font-bold text-slate-900 mb-4">Trainable Parameter Distribution</h3>
+            <p class="text-slate-600 mb-6">This chart illustrates the exact trainable parameter breakdown (10,449,170 total parameters) extracted from model summary logs in <code>results/</code>.</p>
             <div class="chart-container">
                 <canvas id="componentChart"></canvas>
             </div>
@@ -70,7 +70,7 @@ CONFIRMATION: NEITHER Mermaid JS NOR SVG were used anywhere in the output.
         <div class="flex flex-col justify-center space-y-6">
             <div class="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Recommended Replication Model</h3>
-                <p class="text-slate-600 mb-4">Based on your architecture, the exact model you are describing is known in literature as <strong>"Show, Attend and Tell"</strong>.</p>
+                <p class="text-slate-600 mb-4">Based on the model's architecture, the exact model is known in literature as <strong>"Show, Attend and Tell"</strong>.</p>
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-4">
                     <h4 class="font-bold text-blue-900">Direct Replica: Official TensorFlow Tutorial</h4>
                     <p class="text-blue-800 text-sm mt-1">TensorFlow provides an official, perfectly matching tutorial using InceptionV3 + Bahdanau Attention + GRU. It is highly documented and designed for easy adaptation to new languages like Bengali.</p>
@@ -165,9 +165,9 @@ function wrapLabel(label, maxLength) {
 }
 
 const componentLabels = [
-    'InceptionV3 CNN (Feature Extraction)', 
-    'Bahdanau Attention (Spatial Focus)', 
-    'GRU Network (Sequence Generation)'
+    'CNN Encoder & Embedding (3.08M Params - 29.5%)', 
+    'Bahdanau Attention (0.39M Params - 3.8%)', 
+    'GRU & Output Layer (6.97M Params - 66.7%)'
 ];
 
 const ctxDonut = document.getElementById('componentChart').getContext('2d');
@@ -176,7 +176,7 @@ new Chart(ctxDonut, {
     data: {
         labels: componentLabels,
         datasets: [{
-            data: [45, 20, 35],
+            data: [3085812, 394753, 6968605],
             backgroundColor: ['#2563eb', '#06b6d4', '#f97316'],
             borderWidth: 0,
             hoverOffset: 10
@@ -193,6 +193,14 @@ new Chart(ctxDonut, {
                     boxWidth: 15,
                     font: { family: 'Inter', size: 12 } 
                 } 
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const val = context.raw.toLocaleString();
+                        return ` ${context.label.split(' (')[0]}: ${val} params`;
+                    }
+                }
             }
         },
         cutout: '65%'
