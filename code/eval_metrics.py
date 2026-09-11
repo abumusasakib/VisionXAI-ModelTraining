@@ -1,6 +1,9 @@
 import math
 from typing import Dict, List, Tuple
 from collections import Counter, defaultdict
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
@@ -29,8 +32,8 @@ def normalize_bengali_text(s: str) -> str:
     s = unicodedata.normalize("NFC", s)
     # Remove Bengali danda which frequently appears at sentence ends
     s = s.replace("।", "")
-    # Remove other punctuation (keep word characters and whitespace)
-    s = re.sub(r"[^\w\s]", "", s)
+    # Remove punctuation while preserving Bengali combining marks and vowel signs.
+    s = "".join(ch for ch in s if not unicodedata.category(ch).startswith("P"))
     # Collapse multiple spaces
     s = re.sub(r"\s+", " ", s)
     return s.strip()
@@ -157,9 +160,16 @@ def token_jaccard(a: List[str], b: List[str]) -> float:
 
 
 def compute_corpus_metrics(
-    references: Dict[str, List[str]], predictions: Dict[str, str]
+    references: Dict[str, List[str]], predictions: Dict[str, str] = None
 ):
     """references: image -> list of reference strings; predictions: image -> predicted string"""
+    return_tuple = False
+    if predictions is None:
+        return_tuple = True
+        dataset_pairs = references
+        references = {img: refs for img, refs, _pred in dataset_pairs}
+        predictions = {img: pred for img, _refs, pred in dataset_pairs}
+
     imgs = list(predictions.keys())
     total = len(imgs)
     exact_matches = 0
@@ -251,6 +261,13 @@ def compute_corpus_metrics(
         "gower_dissimilarity": float(np.mean(gower_dissimilarities)) if gower_dissimilarities else 0.0,
         "per_image": per_image,
     }
+    if return_tuple:
+        summary = dict(metrics)
+        summary["mean_gower_dissimilarity"] = summary["gower_dissimilarity"]
+        summary["mean_token_jaccard"] = summary["token_jaccard"]
+        summary["count"] = len(per_image)
+        summary.pop("per_image", None)
+        return summary, per_image
     return metrics
 
 def save_metrics_csv(per_image: Dict[str, dict], path: str):
@@ -294,6 +311,8 @@ class ModelEvaluator:
             "specificity": float(specificity),
             "f1": float(f1),
             "f2": float(f2),
+            "f1_score": float(f1),
+            "f2_score": float(f2),
         }
 
     @staticmethod
@@ -349,7 +368,7 @@ class ModelEvaluator:
         total_pos = np.sum(y_true == 1)
 
         recalls = tps / float(total_pos + EPS) if total_pos > 0 else np.zeros_like(tps, dtype=float)
-        precisions = tps / float(tps + fps + EPS)
+        precisions = tps / (tps + fps + EPS)
 
         recalls = np.insert(recalls, 0, 0.0)
         precisions = np.insert(precisions, 0, 1.0)
@@ -369,6 +388,9 @@ class ModelEvaluator:
           - f2: String Length Ratio Difference (|len1 - len2| / max_len)
           - f3: Levenshtein Edit Distance Ratio (1 - Lev Ratio)
         """
+        if norm_pred == norm_ref:
+            return 0.0
+
         if not norm_pred and not norm_ref:
             return 0.0
         
@@ -430,7 +452,7 @@ class ModelEvaluator:
 
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
-    plt.figure(figsize=(7, 6))
+    fig = plt.figure(figsize=(7, 6))
     plt.plot(fprs, tprs, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
     plt.plot([0, 1], [0, 1], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
     plt.fill_between(fprs, tprs, color="#3b82f6", alpha=0.2)
@@ -446,12 +468,14 @@ def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.show()
+    plt.close(fig)
 
 
 def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: float, out_path: str = None):
     """Plot Precision-Recall (PR) curve with PR-AUC area shading."""
-    plt.figure(figsize=(7, 6))
+    fig = plt.figure(figsize=(7, 6))
     plt.plot(recalls, precisions, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
     plt.fill_between(recalls, precisions, color="#06b6d4", alpha=0.2)
 
@@ -466,12 +490,14 @@ def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: flo
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.show()
+    plt.close(fig)
 
 
 def plot_epoch_metrics(history: Dict[str, List[float]], out_path: str = None):
     # history keys: 'train_loss', 'val_loss', 'val_accuracy', 'val_rouge1', etc.
-    plt.figure(figsize=(10,5))
+    fig = plt.figure(figsize=(10,5))
     if "train_loss" in history:
         plt.plot(history["train_loss"], label="train_loss")
     if "val_loss" in history:
@@ -484,16 +510,20 @@ def plot_epoch_metrics(history: Dict[str, List[float]], out_path: str = None):
     plt.grid(True, alpha=0.3)
     if out_path:
         plt.savefig(out_path, dpi=200, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.show()
+    plt.close(fig)
 
 def plot_hist(scores: List[float], title: str, out_path: str = None):
-    plt.figure(figsize=(6,4))
+    fig = plt.figure(figsize=(6,4))
     plt.hist(scores, bins=30)
     plt.title(title)
     plt.xlabel("Score")
     plt.ylabel("Count")
     if out_path:
         plt.savefig(out_path, dpi=200, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.show()
+    plt.close(fig)
 
 
