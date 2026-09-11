@@ -1,39 +1,68 @@
 #!/usr/bin/env bash
-# Enhanced postInstall script for Bengali fonts
-set -e
+# Enhanced postInstall script for Bengali fonts with reliable packages and URLs
+# We do NOT set -e here because we want the build to succeed even if some downloads fail
 
 echo "🌐 Setting up Bengali fonts for matplotlib rendering..."
 
 FONT_DIR="/usr/share/fonts/truetype/bengali"
 mkdir -p "$FONT_DIR"
 
-download_and_install() {
-    local url=$1
-    local name=$2
-    echo "⬇️ Downloading $name..."
-    wget -q "$url" -O "${name}.zip" || { echo "⚠️ Failed to download $name"; return; }
+# Install standard Ubuntu font packages for Bengali (including Noto fonts)
+echo "📦 Installing Ubuntu Bengali font packages..."
+apt-get update && apt-get install -y --no-install-recommends \
+    fonts-beng-extra \
+    fonts-beng \
+    fonts-noto-core \
+    || echo "⚠️ APT font package installation failed, but continuing to manual downloads"
 
-    echo "📦 Extracting $name..."
-    unzip -qo "${name}.zip" -d "${name}" || { 
-        echo "⚠️ Failed to unzip $name"
-        rm -f "${name}.zip"
-        return
-    }
-
-    # Copy all ttf/otf fonts
-    find "${name}" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp -v {} "$FONT_DIR" \; || true
-
-    rm -rf "${name}" "${name}.zip"
+# Function to download single TTF files from reliable sources (GitHub)
+# Usage: download_ttf <font_name> <url1> [url2] ...
+download_ttf() {
+    local name=$1
+    shift
+    local dest="$FONT_DIR/${name}.ttf"
+    
+    # Try URLs sequentially until one succeeds
+    for url in "$@"; do
+        echo "⬇️ Downloading $name.ttf from $url..."
+        # Try downloading with curl first (fails on HTTP errors)
+        if curl -sLf "$url" -o "$dest"; then
+            if [ -f "$dest" ] && [ $(stat -c%s "$dest") -gt 10000 ]; then
+                echo "✅ Successfully downloaded $name.ttf (curl)"
+                return 0
+            fi
+        fi
+        
+        # Fallback to wget
+        rm -f "$dest"
+        if wget -q "$url" -O "$dest"; then
+            if [ -f "$dest" ] && [ $(stat -c%s "$dest") -gt 10000 ]; then
+                echo "✅ Successfully downloaded $name.ttf (wget)"
+                return 0
+            fi
+        fi
+        rm -f "$dest"
+    done
+    
+    echo "❌ Failed to download a valid $name.ttf from all sources"
+    return 1
 }
 
-# --- Bengali Fonts ---
-download_and_install "https://noto-website-2.storage.googleapis.com/pkgs/NotoSansBengali-unhinted.zip" "NotoSansBengali"
-download_and_install "https://noto-website-2.storage.googleapis.com/pkgs/NotoSerifBengali-unhinted.zip" "NotoSerifBengali"
-download_and_install "https://www.wfonts.com/download/data/2016/04/29/solaimanlipi/solaimanlipi.zip" "SolaimanLipi"
+# Download popular custom Bengali fonts from stable GitHub repositories (with fallbacks)
+download_ttf "SolaimanLipi" \
+             "https://raw.githubusercontent.com/maateen/solaiman-lipi/master/SolaimanLipi.ttf" \
+             "https://raw.githubusercontent.com/tazihad/bangla-fonts/master/SolaimanLipi.ttf" \
+             "https://raw.githubusercontent.com/maateen/solaimanlipi/master/Alternative/SolaimanLipi.ttf" || true
 
-# --- Bengali Fonts (Kalpurush & Mukti) ---
-download_and_install "https://www.easybengalityping.com/public/resource/font/bangla/unicode/kalpurush-unicode-bangla-font.zip" "Kalpurush"
-download_and_install "https://www.wfonts.com/download/data/2016/04/27/mukti/mukti.zip" "Mukti"
+download_ttf "Kalpurush" \
+             "https://raw.githubusercontent.com/maateen/kalpurush/master/Kalpurush.ttf" \
+             "https://raw.githubusercontent.com/tazihad/bangla-fonts/master/Kalpurush.ttf" || true
+
+download_ttf "NotoSansBengali-Regular" \
+             "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansbengali/static/NotoSansBengali-Regular.ttf" || true
+
+download_ttf "NotoSerifBengali-Regular" \
+             "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifbengali/static/NotoSerifBengali-Regular.ttf" || true
 
 # Refresh font cache
 echo "🔄 Refreshing font cache..."
@@ -42,3 +71,14 @@ fc-cache -fv || echo "⚠️ Font cache refresh failed, but continuing"
 # Verify installation
 echo "✅ Installed Bengali fonts:"
 fc-list | grep -Ei "bengali|solaiman|kalpurush|mukti|dejavu|freeserif" || echo "⚠️ No fonts found after install"
+
+# Ensure ptxas is in the execution PATH by symlinking it if found in CUDA directory
+echo "🔍 Searching for CUDA ptxas compiler..."
+for cuda_dir in /usr/local/cuda /usr/local/cuda-*; do
+    if [ -f "$cuda_dir/bin/ptxas" ]; then
+        echo "✅ Found ptxas in $cuda_dir/bin/ptxas, symlinking to /usr/bin/ptxas..."
+        ln -sf "$cuda_dir/bin/ptxas" /usr/bin/ptxas
+        break
+    fi
+done
+

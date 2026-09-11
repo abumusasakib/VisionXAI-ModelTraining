@@ -35,6 +35,7 @@ COPY wheels /tmp/wheels
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir \
     jupyter==1.1.1 \
+    fastjsonschema==2.18.1 \
     matplotlib==3.7.5 \
     mplcairo==0.6.1 \
     numpy==1.24.4 \
