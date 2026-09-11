@@ -36,7 +36,7 @@ def normalize_caption_for_selection(caption: str) -> str:
 
 
 def caption_tokens(caption: str) -> List[str]:
-    """Tokenize caption after Bengali normalization."""
+    """Tokenize caption (normalizing if needed)."""
     return tokenize(normalize_bengali_text(caption))
 
 
@@ -48,9 +48,10 @@ def is_repetitive_caption(tokens: List[str], repetition_threshold: float = 0.66)
     return unique_ratio < (1.0 - repetition_threshold)
 
 
-def caption_quality_score(caption: str) -> float:
+def caption_quality_score(caption: str, tokens: Optional[List[str]] = None) -> float:
     """Compute heuristic quality score for a Bengali caption."""
-    tokens = caption_tokens(caption)
+    if tokens is None:
+        tokens = caption_tokens(caption)
     token_count = len(tokens)
     if token_count == 0:
         return -100.0
@@ -111,13 +112,13 @@ def select_top_captions_for_image(captions: List[str], max_captions: int = 2) ->
         norm_caption = normalize_caption_for_selection(caption)
         if not norm_caption:
             continue
-        tokens = caption_tokens(norm_caption)
+        tokens = tokenize(norm_caption)
         duplicate_key = " ".join(tokens).casefold()
         if duplicate_key in seen:
             continue
         seen.add(duplicate_key)
 
-        score = caption_quality_score(norm_caption)
+        score = caption_quality_score(norm_caption, tokens=tokens)
         item = (norm_caption, tokens, score, index)
         fallback.append(item)
         if score <= -6.0:
