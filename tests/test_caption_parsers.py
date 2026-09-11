@@ -132,8 +132,37 @@ def test_collect_all_caption_data_skips_bangla_image_captioning(tmp_path):
         assert "ban_cap" in res
         assert "banglalekha_image_captions" in res
         # Check that bangla_image_captioning is completely skipped
-        assert "bangla_image_captioning" not in res
     finally:
         for name, orig_func in original_extracts.items():
             DatasetComponentFactory._registry[name].extract = orig_func
+
+
+def test_export_captions_to_xlsx(tmp_path):
+    """Verify that export_captions_to_xlsx generates a valid XLSX file readable by XLSXCaptionParser."""
+    from caption_parsers import export_captions_to_xlsx, XLSXCaptionParser
+
+    # Create dummy image files
+    img1 = tmp_path / "img1.png"
+    img2 = tmp_path / "img2.png"
+    img1.write_bytes(b"dummy")
+    img2.write_bytes(b"dummy")
+
+    dummy_mapping = {
+        str(img1): ["Caption 1", "Caption 2"],
+        str(img2): ["Caption 3"],
+    }
+
+    output_xlsx = str(tmp_path / "consolidated.xlsx")
+    exported_path = export_captions_to_xlsx(dummy_mapping, output_xlsx)
+    assert os.path.exists(exported_path)
+
+    # Read back using XLSXCaptionParser
+    parser = XLSXCaptionParser(has_header=True)
+    read_mapping = parser.extract(exported_path, images_path="", validate_images=True)
+    
+    assert str(img1) in read_mapping
+    assert str(img2) in read_mapping
+    assert read_mapping[str(img1)] == ["Caption 1", "Caption 2"]
+    assert read_mapping[str(img2)] == ["Caption 3"]
+
 

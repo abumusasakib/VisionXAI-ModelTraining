@@ -539,20 +539,48 @@ class BanglaLekhaImageCaptionsComponent(DatasetComponent):
 # The `collect_all_caption_data` function orchestrates the process of finding and parsing caption files across a given directory structure. It intelligently determines the correct parser and image directory for different file types.
 
 
+def export_captions_to_xlsx(caption_mapping: Dict[str, List[str]], output_path: str) -> str:
+    """
+    Exports a consolidated caption mapping dictionary into a single unified XLSX file,
+    matching the standard structure (Column A: Image Path, Column B: Caption).
+
+    Args:
+        caption_mapping (Dict[str, List[str]]): Dictionary mapping image paths to lists of captions.
+        output_path (str): File path where the XLSX spreadsheet should be saved.
+
+    Returns:
+        str: Absolute path of the exported XLSX file.
+    """
+    import pandas as pd
+
+    rows = []
+    for img_path, captions in caption_mapping.items():
+        for cap in captions:
+            rows.append({"image": img_path, "caption": cap})
+
+    df = pd.DataFrame(rows)
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    df.to_excel(output_path, index=False)
+    print(f"📄 Consolidated dataset exported to XLSX ({len(rows)} rows): {output_path}")
+    return output_path
+
+
 def collect_all_caption_data(
     base_dir: str,
     validate_images: bool = True,
     enabled_datasets: Optional[List[str]] = None,
+    export_xlsx_path: Optional[str] = None,
 ) -> Dict[str, List[str]]:
     """
     Walks through a base directory to find and extract caption data from XLSX, CSV, and JSON files
-    using registered dataset components.
+    using registered dataset components. Optionally exports the consolidated dataset into a single XLSX file.
 
     Args:
         base_dir (str): The root directory to start searching for files.
         validate_images (bool, optional): If True, validates image paths during extraction. Defaults to True.
         enabled_datasets (List[str], optional): List of dataset names to enable. If provided, all other
                                                 datasets are disabled for ablation studies.
+        export_xlsx_path (str, optional): If provided, exports all collected captions to this XLSX file path.
 
     Returns:
         Dict[str, List[str]]: A consolidated dictionary of all found image-caption mappings.
@@ -587,6 +615,9 @@ def collect_all_caption_data(
                     print(f"   → Extracted {len(captions)} valid mappings from {file}")
                     all_captions.update(captions)
                     break  # Found matching component, proceed to next file
+
+    if export_xlsx_path:
+        export_captions_to_xlsx(all_captions, export_xlsx_path)
 
     return all_captions
 
