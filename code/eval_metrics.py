@@ -168,8 +168,8 @@ def compute_corpus_metrics(
 
     rouge1, rouge2, rougel = [], [], []
     macro_precisions, macro_recalls = [], []
-    # character-level Levenshtein ratio and token-level Jaccard
-    char_levs, token_jaccards = [], []
+    # character-level Levenshtein ratio, token-level Jaccard, and Gower dissimilarity
+    char_levs, token_jaccards, gower_dissimilarities = [], [], []
     per_image = {}
 
     for img in imgs:
@@ -205,6 +205,14 @@ def compute_corpus_metrics(
                 best_tok_j = j
         token_jaccards.append(best_tok_j)
 
+        # --- Gower dissimilarity (best reference) ---
+        best_gower = 1.0
+        for r in norm_refs:
+            gow = ModelEvaluator.compute_gower_dissimilarity(norm_pred, r)
+            if gow < best_gower:
+                best_gower = gow
+        gower_dissimilarities.append(best_gower)
+
         r1 = rouge_n(refs, pred, 1)
         r2 = rouge_n(refs, pred, 2)
         rl = rouge_l(refs, pred)
@@ -227,6 +235,7 @@ def compute_corpus_metrics(
             "normalized_exact_match": int(norm_pred in norm_refs),
             "char_lev_ratio": float(best_char_lev),
             "token_jaccard": float(best_tok_j),
+            "gower_dissimilarity": float(best_gower),
         }
 
     metrics = {
@@ -239,6 +248,7 @@ def compute_corpus_metrics(
         "rougeL": float(np.mean(rougel)) if rougel else 0.0,
         "char_lev_ratio": float(np.mean(char_levs)) if char_levs else 0.0,
         "token_jaccard": float(np.mean(token_jaccards)) if token_jaccards else 0.0,
+        "gower_dissimilarity": float(np.mean(gower_dissimilarities)) if gower_dissimilarities else 0.0,
         "per_image": per_image,
     }
     return metrics
@@ -247,14 +257,14 @@ def save_metrics_csv(per_image: Dict[str, dict], path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["image", "pred", "precision", "recall", "f1", "r1_f1", "r2_f1", "rl_f1", "exact_match", "normalized_exact_match", "char_lev_ratio", "token_jaccard"])
+        writer.writerow(["image", "pred", "precision", "recall", "f1", "r1_f1", "r2_f1", "rl_f1", "exact_match", "normalized_exact_match", "char_lev_ratio", "token_jaccard", "gower_dissimilarity"])
         for img, d in per_image.items():
-            writer.writerow([img, d["pred"], d["precision"], d["recall"], d["f1"], d["r1_f1"], d["r2_f1"], d["rl_f1"], d["exact_match"], d.get("normalized_exact_match", 0), d.get("char_lev_ratio", 0.0), d.get("token_jaccard", 0.0)])
+            writer.writerow([img, d["pred"], d["precision"], d["recall"], d["f1"], d["r1_f1"], d["r2_f1"], d["rl_f1"], d["exact_match"], d.get("normalized_exact_match", 0), d.get("char_lev_ratio", 0.0), d.get("token_jaccard", 0.0), d.get("gower_dissimilarity", 0.0)])
 
 
 class ModelEvaluator:
     """
-    Model Evaluator utility re-used from CSE904 Trade-Misinvoicing-Analysis framework.
+    Model Evaluator utility.
     Provides classification metrics (Accuracy, Precision, Recall, Specificity, F1, F2),
     asymmetric Jaccard similarity, and exact ROC curve / AUC computation.
     """
@@ -324,6 +334,99 @@ class ModelEvaluator:
 
         return fprs, tprs, float(auc)
 
+    @staticmethod
+    def compute_pr_auc(y_true: np.ndarray, y_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Compute Precision-Recall curve coordinates (Precisions, Recalls) and PR-AUC score."""
+        y_true = np.asarray(y_true)
+        y_probs = np.asarray(y_probs)
+
+        desc_indices = np.argsort(y_probs)[::-1]
+        y_true_sorted = y_true[desc_indices]
+
+        tps = np.cumsum(y_true_sorted == 1)
+        fps = np.cumsum(y_true_sorted == 0)
+
+        total_pos = np.sum(y_true == 1)
+
+        recalls = tps / float(total_pos + EPS) if total_pos > 0 else np.zeros_like(tps, dtype=float)
+        precisions = tps / float(tps + fps + EPS)
+
+        recalls = np.insert(recalls, 0, 0.0)
+        precisions = np.insert(precisions, 0, 1.0)
+
+        pr_auc = 0.0
+        for i in range(1, len(recalls)):
+            pr_auc += (recalls[i] - recalls[i - 1]) * (precisions[i] + precisions[i - 1]) / 2.0
+
+        return precisions, recalls, float(pr_auc)
+
+    @staticmethod
+    def compute_gower_dissimilarity(norm_pred: str, norm_ref: str) -> float:
+        """
+        Compute Gower Mixed-Attribute Dissimilarity.
+        Combines:
+          - f1: Token Jaccard Dissimilarity (1 - Token Jaccard)
+          - f2: String Length Ratio Difference (|len1 - len2| / max_len)
+          - f3: Levenshtein Edit Distance Ratio (1 - Lev Ratio)
+        """
+        if not norm_pred and not norm_ref:
+            return 0.0
+        
+        p_toks = norm_pred.split()
+        r_toks = norm_ref.split()
+
+        # Attribute 1: Token overlap dissimilarity
+        d1 = 1.0 - token_jaccard(p_toks, r_toks)
+
+        # Attribute 2: Sequence length difference ratio
+        len_max = max(len(norm_pred), len(norm_ref))
+        d2 = abs(len(norm_pred) - len(norm_ref)) / float(len_max + EPS) if len_max > 0 else 0.0
+
+        # Attribute 3: Character edit dissimilarity
+        d3 = 1.0 - levenshtein_ratio(norm_pred, norm_ref)
+
+        gower_score = (d1 + d2 + d3) / 3.0
+        return float(gower_score)
+
+    @staticmethod
+    def group_metrics_by_dataset(per_image: Dict[str, dict]) -> Dict[str, dict]:
+        """
+        Group performance metrics segmented by dataset source component (CSE904 fairness_by_group).
+        """
+        groups = defaultdict(list)
+        for img_path, d in per_image.items():
+            lower_path = img_path.lower()
+            if "rxxch9vw59" in lower_path:
+                comp_name = "banglalekha_image_captions"
+            elif "ban-cap" in lower_path:
+                comp_name = "ban_cap"
+            elif "image_captioning_dataset" in lower_path:
+                comp_name = "image_captioning_dataset"
+            elif "bangla image captioning" in lower_path:
+                comp_name = "bangla_image_captioning"
+            elif "banglaview" in lower_path:
+                comp_name = "banglaview"
+            else:
+                comp_name = "other"
+            groups[comp_name].append(d)
+
+        segmented = {}
+        for comp, items in groups.items():
+            count = len(items)
+            if count == 0:
+                continue
+            segmented[comp] = {
+                "count": count,
+                "exact_match_pct": float(np.mean([x.get("exact_match", 0) for x in items])) * 100.0,
+                "norm_exact_match_pct": float(np.mean([x.get("normalized_exact_match", 0) for x in items])) * 100.0,
+                "mean_rouge1": float(np.mean([x.get("r1_f1", 0.0) for x in items])),
+                "mean_rouge2": float(np.mean([x.get("r2_f1", 0.0) for x in items])),
+                "mean_rougeL": float(np.mean([x.get("rl_f1", 0.0) for x in items])),
+                "mean_char_lev": float(np.mean([x.get("char_lev_ratio", 0.0) for x in items])),
+                "mean_token_jaccard": float(np.mean([x.get("token_jaccard", 0.0) for x in items])),
+            }
+        return segmented
+
 
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
@@ -339,6 +442,26 @@ def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out
     plt.ylim([-0.01, 1.01])
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend(loc="lower right", frameon=True)
+
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.show()
+
+
+def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: float, out_path: str = None):
+    """Plot Precision-Recall (PR) curve with PR-AUC area shading."""
+    plt.figure(figsize=(7, 6))
+    plt.plot(recalls, precisions, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
+    plt.fill_between(recalls, precisions, color="#06b6d4", alpha=0.2)
+
+    plt.title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
+    plt.xlabel("Recall", fontsize=12)
+    plt.ylabel("Precision", fontsize=12)
+    plt.xlim([-0.01, 1.01])
+    plt.ylim([-0.01, 1.01])
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.legend(loc="lower left", frameon=True)
 
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
@@ -372,4 +495,5 @@ def plot_hist(scores: List[float], title: str, out_path: str = None):
     if out_path:
         plt.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.show()
+
 
