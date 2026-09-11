@@ -9,8 +9,10 @@ import xml.etree.ElementTree as ET
 import os
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from abc import ABC, abstractmethod
+
+from caption_selection import select_top_captions_for_image
 
 # Attempt to import cElementTree for faster XML parsing, fall back to ElementTree
 try:
@@ -555,7 +557,8 @@ def export_captions_to_xlsx(caption_mapping: Dict[str, List[str]], output_path: 
 
     rows = []
     for img_path, captions in caption_mapping.items():
-        for cap in captions:
+        selected_captions = select_top_captions_for_image(captions, max_captions=2)
+        for cap in selected_captions:
             rows.append({"image": img_path, "caption": cap})
 
     df = pd.DataFrame(rows)
@@ -620,4 +623,3 @@ def collect_all_caption_data(
         export_captions_to_xlsx(all_captions, export_xlsx_path)
 
     return all_captions
-
