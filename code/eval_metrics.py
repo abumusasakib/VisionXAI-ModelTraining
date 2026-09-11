@@ -251,6 +251,101 @@ def save_metrics_csv(per_image: Dict[str, dict], path: str):
         for img, d in per_image.items():
             writer.writerow([img, d["pred"], d["precision"], d["recall"], d["f1"], d["r1_f1"], d["r2_f1"], d["rl_f1"], d["exact_match"], d.get("normalized_exact_match", 0), d.get("char_lev_ratio", 0.0), d.get("token_jaccard", 0.0)])
 
+
+class ModelEvaluator:
+    """
+    Model Evaluator utility re-used from CSE904 Trade-Misinvoicing-Analysis framework.
+    Provides classification metrics (Accuracy, Precision, Recall, Specificity, F1, F2),
+    asymmetric Jaccard similarity, and exact ROC curve / AUC computation.
+    """
+
+    @staticmethod
+    def classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+        """Compute Accuracy, Precision, Recall, Specificity, F1, and F2 scores."""
+        y_true = np.asarray(y_true)
+        y_pred = np.asarray(y_pred)
+        tp = np.sum((y_true == 1) & (y_pred == 1))
+        fp = np.sum((y_true == 0) & (y_pred == 1))
+        fn = np.sum((y_true == 1) & (y_pred == 0))
+        tn = np.sum((y_true == 0) & (y_pred == 0))
+
+        precision = tp / (tp + fp + EPS) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn + EPS) if (tp + fn) > 0 else 0.0
+        specificity = tn / (tn + fp + EPS) if (tn + fp) > 0 else 0.0
+
+        f1 = 2 * (precision * recall) / (precision + recall + EPS) if (precision + recall) > 0 else 0.0
+        f2 = 5 * (precision * recall) / (4 * precision + recall + EPS) if (4 * precision + recall) > 0 else 0.0
+        accuracy = (tp + tn) / (len(y_true) + EPS)
+
+        return {
+            "accuracy": float(accuracy),
+            "precision": float(precision),
+            "recall": float(recall),
+            "specificity": float(specificity),
+            "f1": float(f1),
+            "f2": float(f2),
+        }
+
+    @staticmethod
+    def jaccard_similarity(binary_vec1: np.ndarray, binary_vec2: np.ndarray) -> float:
+        """Calculate Asymmetric Jaccard Similarity = Intersection / Union."""
+        q = np.sum((binary_vec1 == 1) & (binary_vec2 == 1))
+        r = np.sum((binary_vec1 == 1) & (binary_vec2 == 0))
+        s = np.sum((binary_vec1 == 0) & (binary_vec2 == 1))
+        denom = q + r + s
+        if denom == 0:
+            return 1.0
+        return float(q / denom)
+
+    @staticmethod
+    def compute_roc_auc(y_true: np.ndarray, y_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Compute ROC curve (FPR, TPR) coordinates and AUC score using trapezoidal integration."""
+        y_true = np.asarray(y_true)
+        y_probs = np.asarray(y_probs)
+
+        desc_indices = np.argsort(y_probs)[::-1]
+        y_true_sorted = y_true[desc_indices]
+
+        tps = np.cumsum(y_true_sorted == 1)
+        fps = np.cumsum(y_true_sorted == 0)
+
+        total_pos = np.sum(y_true == 1)
+        total_neg = np.sum(y_true == 0)
+
+        tprs = tps / float(total_pos + EPS) if total_pos > 0 else np.zeros_like(tps, dtype=float)
+        fprs = fps / float(total_neg + EPS) if total_neg > 0 else np.zeros_like(fps, dtype=float)
+
+        tprs = np.insert(tprs, 0, 0.0)
+        fprs = np.insert(fprs, 0, 0.0)
+
+        auc = 0.0
+        for i in range(1, len(fprs)):
+            auc += (fprs[i] - fprs[i - 1]) * (tprs[i] + tprs[i - 1]) / 2.0
+
+        return fprs, tprs, float(auc)
+
+
+def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
+    """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
+    plt.figure(figsize=(7, 6))
+    plt.plot(fprs, tprs, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
+    plt.plot([0, 1], [0, 1], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
+    plt.fill_between(fprs, tprs, color="#3b82f6", alpha=0.2)
+
+    plt.title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
+    plt.xlabel("False Positive Rate (FPR)", fontsize=12)
+    plt.ylabel("True Positive Rate (TPR)", fontsize=12)
+    plt.xlim([-0.01, 1.01])
+    plt.ylim([-0.01, 1.01])
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.legend(loc="lower right", frameon=True)
+
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.show()
+
+
 def plot_epoch_metrics(history: Dict[str, List[float]], out_path: str = None):
     # history keys: 'train_loss', 'val_loss', 'val_accuracy', 'val_rouge1', etc.
     plt.figure(figsize=(10,5))
@@ -277,3 +372,4 @@ def plot_hist(scores: List[float], title: str, out_path: str = None):
     if out_path:
         plt.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.show()
+
