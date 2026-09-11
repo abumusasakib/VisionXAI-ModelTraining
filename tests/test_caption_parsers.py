@@ -166,6 +166,40 @@ def test_export_captions_to_xlsx(tmp_path):
     assert read_mapping[str(img2)] == ["Caption 3"]
 
 
+def test_export_captions_to_xlsx_selects_quality_diverse_top_two(tmp_path):
+    """Verify export keeps two useful, non-duplicate captions per image."""
+    import unicodedata
+    from caption_parsers import export_captions_to_xlsx, XLSXCaptionParser
+
+    img1 = tmp_path / "img1.png"
+    img1.write_bytes(b"dummy")
+
+    duplicate_caption = "একটি লোক লাল টুপি পরে বসে আছে"
+    dummy_mapping = {
+        str(img1): [
+            duplicate_caption,
+            duplicate_caption,
+            "জীবনের ছন্দ",
+            "লোকটির হাতে একটি বই রয়েছে",
+            "নীল আকাশ",
+        ],
+    }
+
+    output_xlsx = str(tmp_path / "selected.xlsx")
+    export_captions_to_xlsx(dummy_mapping, output_xlsx)
+
+    parser = XLSXCaptionParser(has_header=True)
+    read_mapping = parser.extract(output_xlsx, images_path="", validate_images=True)
+
+    assert len(read_mapping[str(img1)]) == 2
+    assert duplicate_caption in read_mapping[str(img1)]
+    normalized_captions = [
+        unicodedata.normalize("NFC", caption)
+        for caption in read_mapping[str(img1)]
+    ]
+    assert unicodedata.normalize("NFC", "লোকটির হাতে একটি বই রয়েছে") in normalized_captions
+
+
 def test_csv_caption_parser(tmp_path):
     """Verify CSVCaptionParser extracts image paths and captions accurately."""
     from caption_parsers import CSVCaptionParser
@@ -223,6 +257,4 @@ def test_collect_all_caption_data_export_integration(tmp_path):
 
     assert os.path.exists(export_path)
     assert len(res) > 0
-
-
 
