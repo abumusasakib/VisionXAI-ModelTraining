@@ -165,17 +165,16 @@ function wrapLabel(label, maxLength) {
 }
 
 const componentLabels = [
-    'InceptionV3 CNN (Visual Feature Extraction)', 
-    'Bahdanau Attention (Spatial Re-weighting)', 
-    'GRU Network (Sequential Text Generation)'
+    'InceptionV3 CNN (Feature Extraction)', 
+    'Bahdanau Attention (Spatial Focus)', 
+    'GRU Network (Sequence Generation)'
 ];
-const wrappedComponentLabels = componentLabels.map(label => wrapLabel(label, 16));
 
 const ctxDonut = document.getElementById('componentChart').getContext('2d');
 new Chart(ctxDonut, {
     type: 'doughnut',
     data: {
-        labels: wrappedComponentLabels,
+        labels: componentLabels,
         datasets: [{
             data: [45, 20, 35],
             backgroundColor: ['#2563eb', '#06b6d4', '#f97316'],
@@ -187,19 +186,13 @@ new Chart(ctxDonut, {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'bottom', labels: { padding: 20, font: { family: 'Inter' } } },
-            tooltip: {
-                callbacks: {
-                    title: function(tooltipItems) {
-                        const item = tooltipItems[0];
-                        let label = item.chart.data.labels[item.dataIndex];
-                        if (Array.isArray(label)) {
-                            return label.join(' ');
-                        } else {
-                            return label;
-                        }
-                    }
-                }
+            legend: { 
+                position: 'bottom', 
+                labels: { 
+                    padding: 15, 
+                    boxWidth: 15,
+                    font: { family: 'Inter', size: 12 } 
+                } 
             }
         },
         cutout: '65%'
