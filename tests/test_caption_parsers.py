@@ -170,6 +170,32 @@ def test_export_captions_to_xlsx(tmp_path):
     assert read_mapping[key2] == ["Caption 3"]
 
 
+def test_xlsx_caption_parser_handles_inline_strings_and_image_name_cleanup(tmp_path):
+    """Verify XLSXCaptionParser handles openpyxl inline strings plus dataset image-name quirks."""
+    from openpyxl import Workbook
+    from caption_parsers import XLSXCaptionParser
+
+    img_file = tmp_path / "IMG_001.jpg"
+    img_file.write_bytes(b"dummy")
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["image", "caption"])
+    sheet.append(["*MG*001.jpg#0", "একটি লোক লাল টুপি পরে বসে আছে"])
+    xlsx_file = tmp_path / "captioning.xlsx"
+    workbook.save(xlsx_file)
+
+    parser = XLSXCaptionParser(has_header=True)
+    mapping = parser.extract(
+        str(xlsx_file),
+        images_path=str(tmp_path),
+        validate_images=True,
+    )
+
+    assert str(img_file) in mapping
+    assert mapping[str(img_file)] == ["একটি লোক লাল টুপি পরে বসে আছে"]
+
+
 def test_export_captions_to_xlsx_selects_quality_diverse_top_two(tmp_path):
     """Verify export keeps two useful, non-duplicate captions per image."""
     import unicodedata
@@ -262,4 +288,3 @@ def test_collect_all_caption_data_export_integration(tmp_path):
 
     assert os.path.exists(export_path)
     assert len(res) > 0
-

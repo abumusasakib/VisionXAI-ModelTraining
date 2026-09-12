@@ -149,6 +149,12 @@ class XLSXCaptionParser(CaptionParser):
                         def get_cell_value(cell: ET.Element) -> Optional[str]:
                             """Helper function to extract cell value, handling shared strings."""
                             cell_type = cell.get("t")  # 's' indicates shared string.
+                            if cell_type == "inlineStr":
+                                inline_text = "".join(
+                                    t.text or "" for t in cell.findall(f".//{ns}t")
+                                )
+                                return inline_text if inline_text else None
+
                             # Efficiently find the 'v' (value) element among cell children.
                             value_elem = next(
                                 (v for v in cell if v.tag.endswith("v")), None
