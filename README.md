@@ -15,11 +15,12 @@ An end-to-end deep learning framework for **Bangla Image Captioning with Visual 
 1. [Project Overview](#-project-overview)
 2. [Architecture & Key Features](#-architecture--key-features)
 3. [Dataset Ablation Study Highlights](#-dataset-ablation-study-highlights)
-4. [Caption Selection Policy & Strategy](#-caption-selection-policy--strategy)
-5. [Quick Start & Setup](#-quick-start--setup)
-6. [Running Unit Tests](#-running-unit-tests)
-7. [Repository Structure](#-repository-structure)
-8. [Consolidated Project Documentation](#-consolidated-project-documentation)
+4. [Extended Evaluation Metrics & ModelEvaluator](#-extended-evaluation-metrics--modelevaluator)
+5. [Caption Selection Policy & Strategy](#-caption-selection-policy--strategy)
+6. [Quick Start & Setup](#-quick-start--setup)
+7. [Running Unit Tests](#-running-unit-tests)
+8. [Repository Structure](#-repository-structure)
+9. [Consolidated Project Documentation](#-consolidated-project-documentation)
 
 ---
 
@@ -185,6 +186,48 @@ python -m pytest
 python -m pytest tests/test_caption_parsers.py
 python -m pytest tests/test_model_registry.py
 ```
+
+---
+
+## 📈 Extended Evaluation Metrics & ModelEvaluator
+
+### Key Additions Made
+
+* **`ModelEvaluator` Class ([`code/eval_metrics.py`](code/eval_metrics.py))**:
+  * **Classification Metrics**: Accuracy, Precision, Recall, Specificity, F1-Score, and F2-Score (`ModelEvaluator.classification_metrics`).
+  * **Asymmetric Jaccard Similarity**: `ModelEvaluator.jaccard_similarity` ($\frac{Q}{Q + R + S}$) and token-level binary vectorization (`ModelEvaluator.token_jaccard_via_binary`).
+  * **ROC Curve & AUC Score**: `ModelEvaluator.compute_roc_auc` using exact trapezoidal integration over False Positive Rate (FPR) vs. True Positive Rate (TPR) thresholds.
+* **ROC & PR Curve Plotting**:
+  * **`plot_roc_auc_curve`**: Plots the model's Receiver Operating Characteristic curve against the random guess baseline ($\text{AUC} = 0.50$), with area shading under the curve and saving to `results/roc_auc_curve.png`.
+  * **`plot_pr_curve`**: Plots the Precision-Recall curve with Cyan shading and saving to `results/pr_auc_curve.png`.
+* **Patched Jupyter Notebook ([`code/bangla_image_caption.ipynb`](code/bangla_image_caption.ipynb))**:
+  * Updated imports to include `ModelEvaluator`, `plot_roc_auc_curve`, `plot_pr_curve`, and dataset subgroup metrics.
+  * Appended dedicated evaluation cells for computing and rendering ROC/AUC and PR-AUC curves alongside dataset subgroup breakdown tables in `results/generated_captions_report.html`.
+
+### Evaluation Metrics Breakdown
+
+#### 1. Precision-Recall Curve & PR-AUC (Precision-Recall Area Under Curve)
+* **Relevance for Image Captioning**: While ROC-AUC evaluates the trade-off between True Positive Rate and False Positive Rate, PR-AUC measures Precision vs. Recall across sequence token confidence thresholds. In datasets where exact matches or high-quality captions are rare (imbalanced positive class), PR-AUC provides a more sensitive and informative evaluation of model precision.
+
+#### 2. Precision-Recall / F-Beta Score & Specificity
+* **F2-Score ($\beta=2.0$)**: Weighs recall twice as heavily as precision. Useful for assessing how well the model avoids missing key descriptive Bengali words present in ground truth annotations ($F_2 = 5 \cdot \frac{P \cdot R}{4P + R}$).
+* **Specificity (True Negative Rate)**: Measures how effectively non-relevant target vocabulary tokens are excluded from predictions.
+
+#### 3. Asymmetric Jaccard Overlap & Gower Dissimilarity
+* **Gower / Mixed-Attribute Distance**: Measures dissimilarity between predicted captions and ground truth across mixed attribute types (token overlap, sequence length ratio, and edit distance).
+* **Asymmetric Jaccard Similarity**: Evaluates intersection over union ($\frac{Q}{Q + R + S}$) for multi-token Bengali vocabulary sets.
+
+#### 4. Subgroup / Component Metric Segmentation (`fairness_by_group`)
+* **Relevance for Image Captioning**: Evaluates captioning performance segmented by dataset source component (`rxxch9vw59.2`, `ban-cap`, `image_captioning_dataset`, `bangla_image_captioning`). This provides fine-grained visibility into per-dataset BLEU, ROUGE, and exact match rates.
+
+### Recommended Implementation Roadmap
+
+| Metric | Origin Module | Primary Function / Equation | Integration Point |
+| :--- | :--- | :--- | :--- |
+| **PR-AUC & PR Curve** | CSE904 (`ModelEvaluator`) | $\text{PR-AUC} = \sum (R_i - R_{i-1}) \cdot P_i$ | [`code/eval_metrics.py`](code/eval_metrics.py), Notebook & HTML Report |
+| **F2-Score** | CSE904 (`ModelEvaluator`) | $F_2 = 5 \cdot \frac{P \cdot R}{4P + R}$ | `ModelEvaluator.classification_metrics` |
+| **Gower Dissimilarity** | CSE901 (`gower_calc.py`) | $S_{ij} = \frac{1}{p} \sum_{k=1}^p s_{ijk}$ | Metric evaluation & per-image score logging |
+| **Dataset Group Performance** | CSE904 (`fairness_by_group`) | Per-component aggregated BLEU / ROUGE | HTML Report & console logs |
 
 ---
 
