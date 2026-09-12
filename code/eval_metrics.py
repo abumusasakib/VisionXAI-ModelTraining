@@ -210,7 +210,7 @@ def compute_corpus_metrics(
         best_tok_j = 0.0
         for r in refs:
             r_toks = tokenize(r)
-            j = token_jaccard(p_toks, r_toks)
+            j = ModelEvaluator.token_jaccard_via_binary(p_toks, r_toks)
             if j > best_tok_j:
                 best_tok_j = j
         token_jaccards.append(best_tok_j)
