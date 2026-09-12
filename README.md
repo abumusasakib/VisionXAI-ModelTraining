@@ -15,10 +15,11 @@ An end-to-end deep learning framework for **Bangla Image Captioning with Visual 
 1. [Project Overview](#-project-overview)
 2. [Architecture & Key Features](#-architecture--key-features)
 3. [Dataset Ablation Study Highlights](#-dataset-ablation-study-highlights)
-4. [Quick Start & Setup](#-quick-start--setup)
-5. [Running Unit Tests](#-running-unit-tests)
-6. [Repository Structure](#-repository-structure)
-7. [Consolidated Project Documentation](#consolidated-project-documentation)
+4. [Caption Selection Policy & Strategy](#-caption-selection-policy--strategy)
+5. [Quick Start & Setup](#-quick-start--setup)
+6. [Running Unit Tests](#-running-unit-tests)
+7. [Repository Structure](#-repository-structure)
+8. [Consolidated Project Documentation](#-consolidated-project-documentation)
 
 ---
 
@@ -187,9 +188,29 @@ python -m pytest tests/test_model_registry.py
 
 ---
 
-## Consolidated Project Documentation
+## 🎯 Caption Selection Policy & Strategy
 
-[docs/consolidated_project_documentation_historical_notes.md](docs/consolidated_project_documentation_historical_notes.md) is the project-level technical record for the training work.
+To normalize dataset representation across varying annotation counts per image (e.g., `rxxch9vw59.2` has 2 captions/img; `BAN-Cap` & `image_captioning_dataset` have 5 captions/img; `Bangla Image Captioning` has up to 15 captions/img), a **quality-first diverse top-2 selection policy** is implemented in `code/caption_selection/selector.py` and integrated into `export_captions_to_xlsx`:
+
+1. **Normalization & Filtering**:
+   - **Unicode NFC Normalization**: Normalizes text while preserving Bengali combining marks, vowel signs, and danda punctuation.
+   - **Deduplication**: Rejects exact and near-duplicate captions per image.
+   - **Degeneracy Filter**: Rejects empty, corrupted, repetitive, or non-Bengali text.
+2. **Quality-First Scoring**:
+   - Scores candidate captions based on visible grounding terms (e.g., লোক, নদী, গাছ), action predicates (e.g., বসে, হাঁটছে), and color/spatial attributes (e.g., লাল, বড়, পাশে).
+   - Penalizes abstract or poetic descriptions lacking concrete scene entities.
+3. **Diversity-Aware Top-2 Selection**:
+   - **Caption 1**: Selected as the highest quality-scoring caption.
+   - **Caption 2**: Selected as the highest-scoring candidate that provides maximum lexical diversity (measured via Jaccard distance) relative to Caption 1.
+   - **Fallback**: Images with exactly two valid captions retain both; images with low-scoring captions fall back gracefully without dropping samples.
+
+Research documentation and analysis schemas are archived in [`docs/caption_selection_research/outline.yaml`](docs/caption_selection_research/outline.yaml) and [`docs/caption_selection_research/fields.yaml`](docs/caption_selection_research/fields.yaml).
+
+---
+
+## 📚 Consolidated Project Documentation
+
+[`docs/consolidated_project_documentation_historical_notes.md`](docs/consolidated_project_documentation_historical_notes.md) is the project-level technical record for the training work.
 
 It consolidates the important material that was previously stored as raw inspection logs, notebook cell dumps, diagnostic traces, and implementation notes, including:
 
