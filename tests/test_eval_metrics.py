@@ -73,6 +73,19 @@ def test_asymmetric_jaccard_similarity():
     assert sim == pytest.approx(1.0 / 3.0)
 
 
+def test_token_jaccard_via_binary():
+    """Test token Jaccard similarity computed via shared binary vectorization."""
+    toks1 = ["একটি", "সুন্দর", "পাখি"]
+    toks2 = ["একটি", "পাখি"]
+    
+    # Common = 2 ("একটি", "পাখি"), Union = 3 ("একটি", "সুন্দর", "পাখি") -> 2/3
+    sim = ModelEvaluator.token_jaccard_via_binary(toks1, toks2)
+    assert sim == pytest.approx(2.0 / 3.0)
+
+    # Empty token lists
+    assert ModelEvaluator.token_jaccard_via_binary([], []) == pytest.approx(1.0)
+
+
 def test_roc_auc_computation():
     """Test ROC curve thresholds and AUC calculation via trapezoidal integration."""
     y_true = np.array([0, 0, 1, 1])

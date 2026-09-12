@@ -327,6 +327,19 @@ class ModelEvaluator:
         return float(q / denom)
 
     @staticmethod
+    def token_jaccard_via_binary(tokens1: List[str], tokens2: List[str]) -> float:
+        """Calculate token Jaccard similarity by vectorizing tokens into a shared binary vocabulary indicator matrix."""
+        if not tokens1 and not tokens2:
+            return 1.0
+        vocab = sorted(list(set(tokens1) | set(tokens2)))
+        if not vocab:
+            return 1.0
+        s1, s2 = set(tokens1), set(tokens2)
+        v1 = np.array([1 if w in s1 else 0 for w in vocab], dtype=int)
+        v2 = np.array([1 if w in s2 else 0 for w in vocab], dtype=int)
+        return ModelEvaluator.jaccard_similarity(v1, v2)
+
+    @staticmethod
     def compute_roc_auc(y_true: np.ndarray, y_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
         """Compute ROC curve (FPR, TPR) coordinates and AUC score using trapezoidal integration."""
         y_true = np.asarray(y_true)
