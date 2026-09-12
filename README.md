@@ -193,16 +193,16 @@ python -m pytest tests/test_model_registry.py
 To normalize dataset representation across varying annotation counts per image (e.g., `rxxch9vw59.2` has 2 captions/img; `BAN-Cap` & `image_captioning_dataset` have 5 captions/img; `Bangla Image Captioning` has up to 15 captions/img), a **quality-first diverse top-2 selection policy** is implemented in `code/caption_selection/selector.py` and integrated into `export_captions_to_xlsx`:
 
 1. **Normalization & Filtering**:
-   - **Unicode NFC Normalization**: Normalizes text while preserving Bengali combining marks, vowel signs, and danda punctuation.
-   - **Deduplication**: Rejects exact and near-duplicate captions per image.
-   - **Degeneracy Filter**: Rejects empty, corrupted, repetitive, or non-Bengali text.
+   * **Unicode NFC Normalization**: Normalizes text while preserving Bengali combining marks, vowel signs, and danda punctuation.
+   * **Deduplication**: Rejects exact and near-duplicate captions per image.
+   * **Degeneracy Filter**: Rejects empty, corrupted, repetitive, or non-Bengali text.
 2. **Quality-First Scoring**:
-   - Scores candidate captions based on visible grounding terms (e.g., লোক, নদী, গাছ), action predicates (e.g., বসে, হাঁটছে), and color/spatial attributes (e.g., লাল, বড়, পাশে).
-   - Penalizes abstract or poetic descriptions lacking concrete scene entities.
+   * Scores candidate captions based on visible grounding terms (e.g., লোক, নদী, গাছ), action predicates (e.g., বসে, হাঁটছে), and color/spatial attributes (e.g., লাল, বড়, পাশে).
+   * Penalizes abstract or poetic descriptions lacking concrete scene entities.
 3. **Diversity-Aware Top-2 Selection**:
-   - **Caption 1**: Selected as the highest quality-scoring caption.
-   - **Caption 2**: Selected as the highest-scoring candidate that provides maximum lexical diversity (measured via Jaccard distance) relative to Caption 1.
-   - **Fallback**: Images with exactly two valid captions retain both; images with low-scoring captions fall back gracefully without dropping samples.
+   * **Caption 1**: Selected as the highest quality-scoring caption.
+   * **Caption 2**: Selected as the highest-scoring candidate that provides maximum lexical diversity (measured via Jaccard distance) relative to Caption 1.
+   * **Fallback**: Images with exactly two valid captions retain both; images with low-scoring captions fall back gracefully without dropping samples.
 
 Research documentation and analysis schemas are archived in [`docs/caption_selection_research/outline.yaml`](docs/caption_selection_research/outline.yaml) and [`docs/caption_selection_research/fields.yaml`](docs/caption_selection_research/fields.yaml).
 
