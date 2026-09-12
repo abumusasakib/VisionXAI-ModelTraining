@@ -189,9 +189,7 @@ python -m pytest tests/test_model_registry.py
 
 ---
 
-## 📈 Extended Evaluation Metrics & ModelEvaluator
-
-### Key Additions Made
+## 📈 Evaluation Metrics & ModelEvaluator
 
 * **`ModelEvaluator` Class ([`code/eval_metrics.py`](code/eval_metrics.py))**:
   * **Classification Metrics**: Accuracy, Precision, Recall, Specificity, F1-Score, and F2-Score (`ModelEvaluator.classification_metrics`).
@@ -207,27 +205,62 @@ python -m pytest tests/test_model_registry.py
 ### Evaluation Metrics Breakdown
 
 #### 1. Precision-Recall Curve & PR-AUC (Precision-Recall Area Under Curve)
+
 * **Relevance for Image Captioning**: While ROC-AUC evaluates the trade-off between True Positive Rate and False Positive Rate, PR-AUC measures Precision vs. Recall across sequence token confidence thresholds. In datasets where exact matches or high-quality captions are rare (imbalanced positive class), PR-AUC provides a more sensitive and informative evaluation of model precision.
 
 #### 2. Precision-Recall / F-Beta Score & Specificity
+
 * **F2-Score ($\beta=2.0$)**: Weighs recall twice as heavily as precision. Useful for assessing how well the model avoids missing key descriptive Bengali words present in ground truth annotations ($F_2 = 5 \cdot \frac{P \cdot R}{4P + R}$).
 * **Specificity (True Negative Rate)**: Measures how effectively non-relevant target vocabulary tokens are excluded from predictions.
 
 #### 3. Asymmetric Jaccard Overlap & Gower Dissimilarity
+
 * **Gower / Mixed-Attribute Distance**: Measures dissimilarity between predicted captions and ground truth across mixed attribute types (token overlap, sequence length ratio, and edit distance).
 * **Asymmetric Jaccard Similarity**: Evaluates intersection over union ($\frac{Q}{Q + R + S}$) for multi-token Bengali vocabulary sets.
 
 #### 4. Subgroup / Component Metric Segmentation (`fairness_by_group`)
+
 * **Relevance for Image Captioning**: Evaluates captioning performance segmented by dataset source component (`rxxch9vw59.2`, `ban-cap`, `image_captioning_dataset`, `bangla_image_captioning`). This provides fine-grained visibility into per-dataset BLEU, ROUGE, and exact match rates.
 
-### Recommended Implementation Roadmap
+### 🔬 Domain Separation: Corpus Metrics vs. Classification Metrics
 
-| Metric | Origin Module | Primary Function / Equation | Integration Point |
-| :--- | :--- | :--- | :--- |
-| **PR-AUC & PR Curve** | CSE904 (`ModelEvaluator`) | $\text{PR-AUC} = \sum (R_i - R_{i-1}) \cdot P_i$ | [`code/eval_metrics.py`](code/eval_metrics.py), Notebook & HTML Report |
-| **F2-Score** | CSE904 (`ModelEvaluator`) | $F_2 = 5 \cdot \frac{P \cdot R}{4P + R}$ | `ModelEvaluator.classification_metrics` |
-| **Gower Dissimilarity** | CSE901 (`gower_calc.py`) | $S_{ij} = \frac{1}{p} \sum_{k=1}^p s_{ijk}$ | Metric evaluation & per-image score logging |
-| **Dataset Group Performance** | CSE904 (`fairness_by_group`) | Per-component aggregated BLEU / ROUGE | HTML Report & console logs |
+While both evaluation pipelines compute metrics named **Accuracy**, **Precision**, and **Recall**, they operate on fundamentally distinct domains, mathematical foundations, and data structures:
+
+#### 1. `compute_corpus_metrics` — Natural Language Caption Generation Domain
+
+* **Input Data Type**: Text string predictions and reference ground-truth lists (`Dict[str, List[str]]`).
+* **Precision / Recall / F1 Basis**: Computed via n-gram and unigram token overlap (`token_overlap_scores`, `rouge_n`, `rouge_l`) between predicted strings and reference texts.
+* **Accuracy Basis**: Computed as the proportion of exact string matches (raw or normalized) between the generated caption and reference captions across the corpus:
+  $$\text{Accuracy}_{\text{NLP}} = \frac{\text{Count}(\text{Predicted Caption} \in \text{References})}{\text{Total Images}}$$
+
+#### 2. `ModelEvaluator.classification_metrics` — Binary Classification & Decision Domain
+
+* **Input Data Type**: 1D NumPy binary arrays (`y_true: np.ndarray`, `y_pred: np.ndarray` containing $0$s and $1$s).
+* **Confusion Matrix Basis**: Evaluates explicit True Positive ($TP$), False Positive ($FP$), False Negative ($FN$), and True Negative ($TN$) counts:
+  $$\text{Accuracy}_{\text{Binary}} = \frac{TP + TN}{TP + TN + FP + FN}, \quad \text{Precision} = \frac{TP}{TP + FP}, \quad \text{Recall} = \frac{TP}{TP + FN}$$
+  $$\text{Specificity} = \frac{TN}{TN + FP} \quad \text{(unique to binary decision domain; N/A in open-vocabulary text generation)}$$
+  $$\text{F2-Score} = \frac{5 \cdot P \cdot R}{4P + R} \quad \text{(weighing recall 2}\times\text{ higher than precision, adapted from CSE904 misinvoicing analysis)}$$
+
+#### 🎭 Summary of Differences
+
+| Property | `compute_corpus_metrics` | `ModelEvaluator.classification_metrics` |
+| :--- | :--- | :--- |
+| **Domain** | Natural Language Caption Generation | Binary Classification / Decision Tasks |
+| **Data Type** | Text strings & Token lists | 1D NumPy Binary Arrays (`0`/`1`) |
+| **Precision / Recall Basis** | Token / N-gram overlap against reference text | Confusion Matrix $TP / FP / FN$ counts |
+| **Metrics Supported** | BLEU, ROUGE-1/2/L, Char-Levenshtein, Gower Dissimilarity | Accuracy, Precision, Recall, Specificity, F1, F2, Jaccard |
+
+> [!NOTE]
+> **Refactoring & Architectural Design**: `compute_corpus_metrics` can delegate exact-match binary vectors to `ModelEvaluator.classification_metrics` by encoding exact string matches as binary $1$s and $0$s. However, for unigram/n-gram token overlap, open text token sets do not possess a binary True Negative ($TN$) count because the negative vocabulary space is unconstrained. Maintaining separate functions for corpus text generation and binary classification benchmarks preserves the distinct requirements of both domains.
+
+### Implementation Approach Taken
+
+| Metric                        | Primary Function / Equation                      | Integration Point                                                      |
+|-------------------------------|--------------------------------------------------|------------------------------------------------------------------------|
+| **PR-AUC & PR Curve**         | $\text{PR-AUC} = \sum (R_i - R_{i-1}) \cdot P_i$ | [`code/eval_metrics.py`](code/eval_metrics.py), Notebook & HTML Report |
+| **F2-Score**                  | $F_2 = 5 \cdot \frac{P \cdot R}{4P + R}$         | `ModelEvaluator.classification_metrics`                                |
+| **Gower Dissimilarity**       | $S_{ij} = \frac{1}{p} \sum_{k=1}^p s_{ijk}$      | Metric evaluation & per-image score logging                            |
+| **Dataset Group Performance** | Per-component aggregated BLEU / ROUGE            | HTML Report & console logs                                             |
 
 ---
 
