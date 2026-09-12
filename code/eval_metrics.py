@@ -1,10 +1,12 @@
 import math
 from typing import Dict, List, Tuple
-from collections import Counter, defaultdict
+from collections import Counter
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 import numpy as np
 import csv
 import os
@@ -163,6 +165,8 @@ def compute_corpus_metrics(
     references: Dict[str, List[str]], predictions: Dict[str, str] = None
 ):
     """references: image -> list of reference strings; predictions: image -> predicted string"""
+    from model_evaluation import ModelEvaluator
+
     return_tuple = False
     if predictions is None:
         return_tuple = True
@@ -278,213 +282,31 @@ def save_metrics_csv(per_image: Dict[str, dict], path: str):
         for img, d in per_image.items():
             writer.writerow([img, d["pred"], d["precision"], d["recall"], d["f1"], d["r1_f1"], d["r2_f1"], d["rl_f1"], d["exact_match"], d.get("normalized_exact_match", 0), d.get("char_lev_ratio", 0.0), d.get("token_jaccard", 0.0), d.get("gower_dissimilarity", 0.0)])
 
-
-class ModelEvaluator:
-    """
-    Model Evaluator utility.
-    Provides classification metrics (Accuracy, Precision, Recall, Specificity, F1, F2),
-    asymmetric Jaccard similarity, and exact ROC curve / AUC computation.
-    """
-
-    @staticmethod
-    def classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-        """Compute Accuracy, Precision, Recall, Specificity, F1, and F2 scores."""
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
-        tp = np.sum((y_true == 1) & (y_pred == 1))
-        fp = np.sum((y_true == 0) & (y_pred == 1))
-        fn = np.sum((y_true == 1) & (y_pred == 0))
-        tn = np.sum((y_true == 0) & (y_pred == 0))
-
-        precision = tp / (tp + fp + EPS) if (tp + fp) > 0 else 0.0
-        recall = tp / (tp + fn + EPS) if (tp + fn) > 0 else 0.0
-        specificity = tn / (tn + fp + EPS) if (tn + fp) > 0 else 0.0
-
-        f1 = 2 * (precision * recall) / (precision + recall + EPS) if (precision + recall) > 0 else 0.0
-        f2 = 5 * (precision * recall) / (4 * precision + recall + EPS) if (4 * precision + recall) > 0 else 0.0
-        accuracy = (tp + tn) / (len(y_true) + EPS)
-
-        return {
-            "accuracy": float(accuracy),
-            "precision": float(precision),
-            "recall": float(recall),
-            "specificity": float(specificity),
-            "f1": float(f1),
-            "f2": float(f2),
-            "f1_score": float(f1),
-            "f2_score": float(f2),
-        }
-
-    @staticmethod
-    def jaccard_similarity(binary_vec1: np.ndarray, binary_vec2: np.ndarray) -> float:
-        """Calculate Asymmetric Jaccard Similarity = Intersection / Union."""
-        q = np.sum((binary_vec1 == 1) & (binary_vec2 == 1))
-        r = np.sum((binary_vec1 == 1) & (binary_vec2 == 0))
-        s = np.sum((binary_vec1 == 0) & (binary_vec2 == 1))
-        denom = q + r + s
-        if denom == 0:
-            return 1.0
-        return float(q / denom)
-
-    @staticmethod
-    def token_jaccard_via_binary(tokens1: List[str], tokens2: List[str]) -> float:
-        """Calculate token Jaccard similarity by vectorizing tokens into a shared binary vocabulary indicator matrix."""
-        if not tokens1 and not tokens2:
-            return 1.0
-        vocab = sorted(list(set(tokens1) | set(tokens2)))
-        if not vocab:
-            return 1.0
-        s1, s2 = set(tokens1), set(tokens2)
-        v1 = np.array([1 if w in s1 else 0 for w in vocab], dtype=int)
-        v2 = np.array([1 if w in s2 else 0 for w in vocab], dtype=int)
-        return ModelEvaluator.jaccard_similarity(v1, v2)
-
-    @staticmethod
-    def compute_roc_auc(y_true: np.ndarray, y_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-        """Compute ROC curve (FPR, TPR) coordinates and AUC score using trapezoidal integration."""
-        y_true = np.asarray(y_true)
-        y_probs = np.asarray(y_probs)
-
-        desc_indices = np.argsort(y_probs)[::-1]
-        y_true_sorted = y_true[desc_indices]
-
-        tps = np.cumsum(y_true_sorted == 1)
-        fps = np.cumsum(y_true_sorted == 0)
-
-        total_pos = np.sum(y_true == 1)
-        total_neg = np.sum(y_true == 0)
-
-        tprs = tps / float(total_pos + EPS) if total_pos > 0 else np.zeros_like(tps, dtype=float)
-        fprs = fps / float(total_neg + EPS) if total_neg > 0 else np.zeros_like(fps, dtype=float)
-
-        tprs = np.insert(tprs, 0, 0.0)
-        fprs = np.insert(fprs, 0, 0.0)
-
-        auc = 0.0
-        for i in range(1, len(fprs)):
-            auc += (fprs[i] - fprs[i - 1]) * (tprs[i] + tprs[i - 1]) / 2.0
-
-        return fprs, tprs, float(auc)
-
-    @staticmethod
-    def compute_pr_auc(y_true: np.ndarray, y_probs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-        """Compute Precision-Recall curve coordinates (Precisions, Recalls) and PR-AUC score."""
-        y_true = np.asarray(y_true)
-        y_probs = np.asarray(y_probs)
-
-        desc_indices = np.argsort(y_probs)[::-1]
-        y_true_sorted = y_true[desc_indices]
-
-        tps = np.cumsum(y_true_sorted == 1)
-        fps = np.cumsum(y_true_sorted == 0)
-
-        total_pos = np.sum(y_true == 1)
-
-        recalls = tps / float(total_pos + EPS) if total_pos > 0 else np.zeros_like(tps, dtype=float)
-        precisions = tps / (tps + fps + EPS)
-
-        recalls = np.insert(recalls, 0, 0.0)
-        precisions = np.insert(precisions, 0, 1.0)
-
-        pr_auc = 0.0
-        for i in range(1, len(recalls)):
-            pr_auc += (recalls[i] - recalls[i - 1]) * (precisions[i] + precisions[i - 1]) / 2.0
-
-        return precisions, recalls, float(pr_auc)
-
-    @staticmethod
-    def compute_gower_dissimilarity(norm_pred: str, norm_ref: str) -> float:
-        """
-        Compute Gower Mixed-Attribute Dissimilarity.
-        Combines:
-          - f1: Token Jaccard Dissimilarity (1 - Token Jaccard)
-          - f2: String Length Ratio Difference (|len1 - len2| / max_len)
-          - f3: Levenshtein Edit Distance Ratio (1 - Lev Ratio)
-        """
-        if norm_pred == norm_ref:
-            return 0.0
-
-        if not norm_pred and not norm_ref:
-            return 0.0
-        
-        p_toks = norm_pred.split()
-        r_toks = norm_ref.split()
-
-        # Attribute 1: Token overlap dissimilarity
-        d1 = 1.0 - token_jaccard(p_toks, r_toks)
-
-        # Attribute 2: Sequence length difference ratio
-        len_max = max(len(norm_pred), len(norm_ref))
-        d2 = abs(len(norm_pred) - len(norm_ref)) / float(len_max + EPS) if len_max > 0 else 0.0
-
-        # Attribute 3: Character edit dissimilarity
-        d3 = 1.0 - levenshtein_ratio(norm_pred, norm_ref)
-
-        gower_score = (d1 + d2 + d3) / 3.0
-        return float(gower_score)
-
-    @staticmethod
-    def group_metrics_by_dataset(per_image: Dict[str, dict]) -> Dict[str, dict]:
-        """
-        Group performance metrics segmented by dataset source component (fairness_by_group).
-        """
-        try:
-            from caption_parsers import DatasetComponentFactory
-        except ImportError:
-            from code.caption_parsers import DatasetComponentFactory
-
-        components = DatasetComponentFactory.get_components()
-
-        groups = defaultdict(list)
-        for img_path, d in per_image.items():
-            file_basename = os.path.basename(img_path)
-            comp_name = "other"
-            for component in components:
-                if component.matches(file_basename) or component.matches(img_path):
-                    comp_name = component.name
-                    break
-            groups[comp_name].append(d)
-
-        segmented = {}
-        for comp, items in groups.items():
-            count = len(items)
-            if count == 0:
-                continue
-            segmented[comp] = {
-                "count": count,
-                "exact_match_pct": float(np.mean([x.get("exact_match", 0) for x in items])) * 100.0,
-                "norm_exact_match_pct": float(np.mean([x.get("normalized_exact_match", 0) for x in items])) * 100.0,
-                "mean_rouge1": float(np.mean([x.get("r1_f1", 0.0) for x in items])),
-                "mean_rouge2": float(np.mean([x.get("r2_f1", 0.0) for x in items])),
-                "mean_rougeL": float(np.mean([x.get("rl_f1", 0.0) for x in items])),
-                "mean_char_lev": float(np.mean([x.get("char_lev_ratio", 0.0) for x in items])),
-                "mean_token_jaccard": float(np.mean([x.get("token_jaccard", 0.0) for x in items])),
-            }
-        return segmented
-
-
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
     fprs_list = [float(x) for x in fprs]
     tprs_list = [float(x) for x in tprs]
 
-    fig = plt.figure(figsize=(7, 6))
-    plt.plot(fprs_list, tprs_list, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
-    plt.plot([0.0, 1.0], [0.0, 1.0], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
-    plt.fill_between(fprs_list, tprs_list, color="#3b82f6", alpha=0.2)
+    fig = Figure(figsize=(7, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(fprs_list, tprs_list, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
+    ax.plot([0.0, 1.0], [0.0, 1.0], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
+    ax.fill_between(fprs_list, tprs_list, color="#3b82f6", alpha=0.2)
 
-    plt.title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
-    plt.xlabel("False Positive Rate (FPR)", fontsize=12)
-    plt.ylabel("True Positive Rate (TPR)", fontsize=12)
-    plt.xlim([-0.01, 1.01])
-    plt.ylim([-0.01, 1.01])
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.legend(loc="lower right", frameon=True)
+    ax.set_title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xlabel("False Positive Rate (FPR)", fontsize=12)
+    ax.set_ylabel("True Positive Rate (TPR)", fontsize=12)
+    ax.set_xlim([-0.01, 1.01])
+    ax.set_ylim([-0.01, 1.01])
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower right", frameon=True)
 
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
     else:
+        fig.canvas.draw()
         plt.show()
     plt.close(fig)
 
@@ -494,22 +316,25 @@ def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: flo
     precisions_list = [float(x) for x in precisions]
     recalls_list = [float(x) for x in recalls]
 
-    fig = plt.figure(figsize=(7, 6))
-    plt.plot(recalls_list, precisions_list, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
-    plt.fill_between(recalls_list, precisions_list, color="#06b6d4", alpha=0.2)
+    fig = Figure(figsize=(7, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(recalls_list, precisions_list, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
+    ax.fill_between(recalls_list, precisions_list, color="#06b6d4", alpha=0.2)
 
-    plt.title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
-    plt.xlabel("Recall", fontsize=12)
-    plt.ylabel("Precision", fontsize=12)
-    plt.xlim([-0.01, 1.01])
-    plt.ylim([-0.01, 1.01])
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.legend(loc="lower left", frameon=True)
+    ax.set_title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xlabel("Recall", fontsize=12)
+    ax.set_ylabel("Precision", fontsize=12)
+    ax.set_xlim([-0.01, 1.01])
+    ax.set_ylim([-0.01, 1.01])
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower left", frameon=True)
 
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
     else:
+        fig.canvas.draw()
         plt.show()
     plt.close(fig)
 
@@ -544,5 +369,3 @@ def plot_hist(scores: List[float], title: str, out_path: str = None):
     else:
         plt.show()
     plt.close(fig)
-
-

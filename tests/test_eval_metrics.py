@@ -6,8 +6,8 @@ import numpy as np
 # Ensure code directory is on python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "code")))
 
+import eval_metrics
 from eval_metrics import (
-    ModelEvaluator,
     plot_roc_auc_curve,
     plot_pr_curve,
     normalize_bengali_text,
@@ -17,6 +17,12 @@ from eval_metrics import (
     token_jaccard,
     compute_corpus_metrics,
 )
+from model_evaluation import ModelEvaluator
+
+
+def test_eval_metrics_does_not_reexport_model_evaluator():
+    """ModelEvaluator lives in model_evaluation, not eval_metrics."""
+    assert not hasattr(eval_metrics, "ModelEvaluator")
 
 
 def test_normalize_bengali_text_and_tokenize():
@@ -161,6 +167,24 @@ def test_compute_corpus_metrics():
     assert "mean_token_jaccard" in summary
     assert summary["count"] == 2
     assert summary["mean_gower_dissimilarity"] >= 0.0
+
+
+def test_compute_corpus_metrics_accepts_mapping_inputs():
+    """Test direct references/predictions dictionaries used by notebook workflows."""
+    references = {
+        "img1.jpg": ["একটি পাখি ডালের উপর বসে আছে।"],
+        "img2.jpg": ["একটি বিড়াল মাঠে ঘুমাচ্ছে।"],
+    }
+    predictions = {
+        "img1.jpg": "একটি পাখি ডালে বসে আছে",
+        "img2.jpg": "একটি ছোট বিড়াল মাঠে ঘুমাচ্ছে",
+    }
+
+    metrics = compute_corpus_metrics(references, predictions)
+
+    assert "per_image" in metrics
+    assert set(metrics["per_image"]) == {"img1.jpg", "img2.jpg"}
+    assert metrics["token_jaccard"] > 0.0
 
 
 def test_curve_plotting_functions(tmp_path):
