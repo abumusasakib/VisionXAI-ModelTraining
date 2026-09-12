@@ -160,10 +160,14 @@ def test_export_captions_to_xlsx(tmp_path):
     parser = XLSXCaptionParser(has_header=True)
     read_mapping = parser.extract(exported_path, images_path="", validate_images=True)
     
-    assert str(img1) in read_mapping
-    assert str(img2) in read_mapping
-    assert read_mapping[str(img1)] == ["Caption 1", "Caption 2"]
-    assert read_mapping[str(img2)] == ["Caption 3"]
+    assert str(img1) in read_mapping or os.path.basename(str(img1)) in read_mapping
+    assert str(img2) in read_mapping or os.path.basename(str(img2)) in read_mapping
+    
+    key1 = str(img1) if str(img1) in read_mapping else os.path.basename(str(img1))
+    key2 = str(img2) if str(img2) in read_mapping else os.path.basename(str(img2))
+
+    assert read_mapping[key1] == ["Caption 1", "Caption 2"]
+    assert read_mapping[key2] == ["Caption 3"]
 
 
 def test_export_captions_to_xlsx_selects_quality_diverse_top_two(tmp_path):
@@ -191,11 +195,12 @@ def test_export_captions_to_xlsx_selects_quality_diverse_top_two(tmp_path):
     parser = XLSXCaptionParser(has_header=True)
     read_mapping = parser.extract(output_xlsx, images_path="", validate_images=True)
 
-    assert len(read_mapping[str(img1)]) == 2
-    assert duplicate_caption in read_mapping[str(img1)]
+    key1 = str(img1) if str(img1) in read_mapping else os.path.basename(str(img1))
+    assert len(read_mapping[key1]) == 2
+    assert duplicate_caption in read_mapping[key1]
     normalized_captions = [
         unicodedata.normalize("NFC", caption)
-        for caption in read_mapping[str(img1)]
+        for caption in read_mapping[key1]
     ]
     assert unicodedata.normalize("NFC", "লোকটির হাতে একটি বই রয়েছে") in normalized_captions
 

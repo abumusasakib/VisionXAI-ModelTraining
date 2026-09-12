@@ -452,10 +452,13 @@ class ModelEvaluator:
 
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
+    fprs_list = [float(x) for x in fprs]
+    tprs_list = [float(x) for x in tprs]
+
     fig = plt.figure(figsize=(7, 6))
-    plt.plot(fprs, tprs, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
-    plt.plot([0, 1], [0, 1], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
-    plt.fill_between(fprs, tprs, color="#3b82f6", alpha=0.2)
+    plt.plot(fprs_list, tprs_list, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
+    plt.plot([0.0, 1.0], [0.0, 1.0], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
+    plt.fill_between(fprs_list, tprs_list, color="#3b82f6", alpha=0.2)
 
     plt.title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
     plt.xlabel("False Positive Rate (FPR)", fontsize=12)
@@ -475,9 +478,12 @@ def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out
 
 def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: float, out_path: str = None):
     """Plot Precision-Recall (PR) curve with PR-AUC area shading."""
+    precisions_list = [float(x) for x in precisions]
+    recalls_list = [float(x) for x in recalls]
+
     fig = plt.figure(figsize=(7, 6))
-    plt.plot(recalls, precisions, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
-    plt.fill_between(recalls, precisions, color="#06b6d4", alpha=0.2)
+    plt.plot(recalls_list, precisions_list, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
+    plt.fill_between(recalls_list, precisions_list, color="#06b6d4", alpha=0.2)
 
     plt.title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
     plt.xlabel("Recall", fontsize=12)
