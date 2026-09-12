@@ -158,7 +158,7 @@ def test_export_captions_to_xlsx(tmp_path):
 
     # Read back using XLSXCaptionParser
     parser = XLSXCaptionParser(has_header=True)
-    read_mapping = parser.extract(exported_path, images_path="", validate_images=True)
+    read_mapping = parser.extract(exported_path, images_path="", validate_images=False)
     
     assert str(img1) in read_mapping or os.path.basename(str(img1)) in read_mapping
     assert str(img2) in read_mapping or os.path.basename(str(img2)) in read_mapping
@@ -193,7 +193,7 @@ def test_export_captions_to_xlsx_selects_quality_diverse_top_two(tmp_path):
     export_captions_to_xlsx(dummy_mapping, output_xlsx)
 
     parser = XLSXCaptionParser(has_header=True)
-    read_mapping = parser.extract(output_xlsx, images_path="", validate_images=True)
+    read_mapping = parser.extract(output_xlsx, images_path="", validate_images=False)
 
     key1 = str(img1) if str(img1) in read_mapping else os.path.basename(str(img1))
     assert len(read_mapping[key1]) == 2

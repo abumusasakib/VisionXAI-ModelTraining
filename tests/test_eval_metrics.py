@@ -165,14 +165,18 @@ def test_compute_corpus_metrics():
 
 def test_curve_plotting_functions(tmp_path):
     """Test plot_roc_auc_curve and plot_pr_curve output files."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     fprs = np.array([0.0, 0.5, 1.0])
     tprs = np.array([0.0, 0.8, 1.0])
     roc_out = str(tmp_path / "roc_curve.png")
     plot_roc_auc_curve(fprs, tprs, 0.75, roc_out)
     assert os.path.exists(roc_out)
 
-    recalls = np.array([1.0, 0.8, 0.0])
-    precisions = np.array([0.5, 0.8, 1.0])
+    precisions = np.array([1.0, 0.8, 0.0])
+    recalls = np.array([0.0, 0.5, 1.0])
     pr_out = str(tmp_path / "pr_curve.png")
-    plot_pr_curve(precisions, recalls, 0.82, pr_out)
+    plot_pr_curve(precisions, recalls, 0.75, pr_out)
     assert os.path.exists(pr_out)
