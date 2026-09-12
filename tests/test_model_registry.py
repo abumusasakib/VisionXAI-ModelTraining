@@ -59,6 +59,15 @@ def test_registry_registration():
     assert "show_attend_tell" in registered
 
 
+def test_registry_rejects_unknown_model_names():
+    """Verify registry errors match the current explicit ValueError behavior."""
+    with pytest.raises(ValueError, match="Encoder 'missing_model' is not registered"):
+        ModelRegistry.create_encoder("missing_model")
+
+    with pytest.raises(ValueError, match="Decoder 'missing_model' is not registered"):
+        ModelRegistry.create_decoder("missing_model")
+
+
 def test_create_and_forward_pass():
     """Verify model instantiation via registry and a basic forward pass."""
     embedding_dim = 256
@@ -104,4 +113,3 @@ def test_create_and_forward_pass():
     assert predictions.shape == (batch_size, vocab_size)
     assert hidden.shape == (batch_size, units)
     assert attention_weights.shape == (batch_size, 64, 1)
-

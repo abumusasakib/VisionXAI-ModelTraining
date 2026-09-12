@@ -15,6 +15,13 @@ from caption_selection.selector import (
 )
 
 
+def test_caption_selection_package_exports_top_level_selector():
+    import caption_selection
+
+    assert caption_selection.__all__ == ["select_top_captions_for_image"]
+    assert caption_selection.select_top_captions_for_image is select_top_captions_for_image
+
+
 def normalize_for_assertion(caption):
     return unicodedata.normalize("NFC", caption)
 
