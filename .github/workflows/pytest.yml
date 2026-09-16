@@ -16,16 +16,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.8"
 
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
-            pytest==9.0.2 \
-            numpy==2.0.2 \
-            matplotlib==3.10.7 \
-            pandas==2.2.3 \
+            pytest==8.3.5 \
+            numpy==1.24.4 \
+            matplotlib==3.7.5 \
+            pandas==2.0.3 \
             openpyxl==3.1.5
 
       - name: Run pytest suite

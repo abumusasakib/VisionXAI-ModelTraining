@@ -12,7 +12,6 @@ import csv
 import os
 import unicodedata
 import re
-import base64
 
 EPS = 1e-8
 
@@ -283,49 +282,33 @@ def save_metrics_csv(per_image: Dict[str, dict], path: str):
         for img, d in per_image.items():
             writer.writerow([img, d["pred"], d["precision"], d["recall"], d["f1"], d["r1_f1"], d["r2_f1"], d["rl_f1"], d["exact_match"], d.get("normalized_exact_match", 0), d.get("char_lev_ratio", 0.0), d.get("token_jaccard", 0.0), d.get("gower_dissimilarity", 0.0)])
 
-
-def _write_minimal_png(out_path: str) -> None:
-    """Write a valid 1x1 PNG as a last-resort CI fallback for Matplotlib recursion bugs."""
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-    png_bytes = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
-    )
-    with open(out_path, "wb") as f:
-        f.write(png_bytes)
-
-
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
     fprs_list = [float(x) for x in np.asarray(fprs, dtype=float).ravel()]
     tprs_list = [float(x) for x in np.asarray(tprs, dtype=float).ravel()]
 
-    try:
-        fig = Figure(figsize=(7, 6))
-        FigureCanvasAgg(fig)
-        ax = fig.add_subplot(111)
-        ax.plot(fprs_list, tprs_list, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
-        ax.plot([0.0, 1.0], [0.0, 1.0], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
-        ax.fill_between(fprs_list, tprs_list, color="#3b82f6", alpha=0.2)
+    fig = Figure(figsize=(7, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(fprs_list, tprs_list, color="#2563eb", linewidth=2.5, label=f"Model ROC (AUC = {auc_score:.4f})")
+    ax.plot([0.0, 1.0], [0.0, 1.0], color="#e74c3c", linestyle="--", linewidth=1.5, label="Random Guess (AUC = 0.5000)")
+    ax.fill_between(fprs_list, tprs_list, color="#3b82f6", alpha=0.2)
 
-        ax.set_title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
-        ax.set_xlabel("False Positive Rate (FPR)", fontsize=12)
-        ax.set_ylabel("True Positive Rate (TPR)", fontsize=12)
-        ax.set_xlim([-0.01, 1.01])
-        ax.set_ylim([-0.01, 1.01])
-        ax.grid(True, linestyle="--", alpha=0.5)
-        ax.legend(loc="lower right", frameon=True)
+    ax.set_title("Receiver Operating Characteristic (ROC) Curve", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xlabel("False Positive Rate (FPR)", fontsize=12)
+    ax.set_ylabel("True Positive Rate (TPR)", fontsize=12)
+    ax.set_xlim([-0.01, 1.01])
+    ax.set_ylim([-0.01, 1.01])
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower right", frameon=True)
 
-        if out_path:
-            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-            fig.savefig(out_path, dpi=300, bbox_inches="tight")
-        else:
-            fig.canvas.draw()
-            plt.show()
-        plt.close(fig)
-    except RecursionError:
-        if not out_path:
-            raise
-        _write_minimal_png(out_path)
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    else:
+        fig.canvas.draw()
+        plt.show()
+    plt.close(fig)
 
 
 def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: float, out_path: str = None):
@@ -333,32 +316,27 @@ def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: flo
     precisions_list = [float(x) for x in np.asarray(precisions, dtype=float).ravel()]
     recalls_list = [float(x) for x in np.asarray(recalls, dtype=float).ravel()]
 
-    try:
-        fig = Figure(figsize=(7, 6))
-        FigureCanvasAgg(fig)
-        ax = fig.add_subplot(111)
-        ax.plot(recalls_list, precisions_list, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
-        ax.fill_between(recalls_list, precisions_list, color="#06b6d4", alpha=0.2)
+    fig = Figure(figsize=(7, 6))
+    FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(recalls_list, precisions_list, color="#06b6d4", linewidth=2.5, label=f"Model PR (PR-AUC = {pr_auc_score:.4f})")
+    ax.fill_between(recalls_list, precisions_list, color="#06b6d4", alpha=0.2)
 
-        ax.set_title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
-        ax.set_xlabel("Recall", fontsize=12)
-        ax.set_ylabel("Precision", fontsize=12)
-        ax.set_xlim([-0.01, 1.01])
-        ax.set_ylim([-0.01, 1.01])
-        ax.grid(True, linestyle="--", alpha=0.5)
-        ax.legend(loc="lower left", frameon=True)
+    ax.set_title("Precision-Recall (PR) Curve", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xlabel("Recall", fontsize=12)
+    ax.set_ylabel("Precision", fontsize=12)
+    ax.set_xlim([-0.01, 1.01])
+    ax.set_ylim([-0.01, 1.01])
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower left", frameon=True)
 
-        if out_path:
-            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-            fig.savefig(out_path, dpi=300, bbox_inches="tight")
-        else:
-            fig.canvas.draw()
-            plt.show()
-        plt.close(fig)
-    except RecursionError:
-        if not out_path:
-            raise
-        _write_minimal_png(out_path)
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    else:
+        fig.canvas.draw()
+        plt.show()
+    plt.close(fig)
 
 
 def plot_epoch_metrics(history: Dict[str, List[float]], out_path: str = None):
