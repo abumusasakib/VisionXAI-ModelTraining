@@ -42,6 +42,10 @@ class ModelEvaluator:
             "f2": float(f2),
             "f1_score": float(f1),
             "f2_score": float(f2),
+            "tp": int(tp),
+            "fp": int(fp),
+            "fn": int(fn),
+            "tn": int(tn),
         }
 
     @staticmethod

@@ -27,6 +27,10 @@ def test_model_evaluator_package_classification_metrics():
     assert metrics["precision"] == pytest.approx(1.0)
     assert metrics["recall"] == pytest.approx(0.5)
     assert metrics["f1_score"] == metrics["f1"]
+    assert metrics["tp"] == 1
+    assert metrics["fp"] == 0
+    assert metrics["fn"] == 1
+    assert metrics["tn"] == 2
 
 
 def test_model_evaluator_handles_empty_and_single_class_inputs():
