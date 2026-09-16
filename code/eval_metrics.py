@@ -284,8 +284,8 @@ def save_metrics_csv(per_image: Dict[str, dict], path: str):
 
 def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out_path: str = None):
     """Plot Receiver Operating Characteristic (ROC) curve with AUC area shading."""
-    fprs_list = [float(x) for x in fprs]
-    tprs_list = [float(x) for x in tprs]
+    fprs_list = [float(x) for x in np.asarray(fprs, dtype=float).ravel()]
+    tprs_list = [float(x) for x in np.asarray(tprs, dtype=float).ravel()]
 
     fig = Figure(figsize=(7, 6))
     FigureCanvasAgg(fig)
@@ -313,8 +313,8 @@ def plot_roc_auc_curve(fprs: np.ndarray, tprs: np.ndarray, auc_score: float, out
 
 def plot_pr_curve(precisions: np.ndarray, recalls: np.ndarray, pr_auc_score: float, out_path: str = None):
     """Plot Precision-Recall (PR) curve with PR-AUC area shading."""
-    precisions_list = [float(x) for x in precisions]
-    recalls_list = [float(x) for x in recalls]
+    precisions_list = [float(x) for x in np.asarray(precisions, dtype=float).ravel()]
+    recalls_list = [float(x) for x in np.asarray(recalls, dtype=float).ravel()]
 
     fig = Figure(figsize=(7, 6))
     FigureCanvasAgg(fig)
