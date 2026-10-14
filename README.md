@@ -18,9 +18,10 @@ An end-to-end deep learning framework for **Bangla Image Captioning with Visual 
 4. [Extended Evaluation Metrics & ModelEvaluator](#-extended-evaluation-metrics--modelevaluator)
 5. [Caption Selection Policy & Strategy](#-caption-selection-policy--strategy)
 6. [Quick Start & Setup](#-quick-start--setup)
-7. [Running Unit Tests](#-running-unit-tests)
-8. [Repository Structure](#-repository-structure)
-9. [Consolidated Project Documentation](#-consolidated-project-documentation)
+7. [Kaggle Notebook Deployment & Helper Scripts Setup](#-kaggle-notebook-deployment--helper-scripts-setup)
+8. [Running Unit Tests](#-running-unit-tests)
+9. [Repository Structure](#-repository-structure)
+10. [Consolidated Project Documentation](#-consolidated-project-documentation)
 
 ---
 
@@ -169,6 +170,91 @@ docker run --platform linux/amd64 --rm --gpus all --workdir /code --volume "%cd%
 
 4. **Access Jupyter Notebook:**
    After running the `jupyter notebook` command, you should see output in your terminal with a URL that starts with `http://127.0.0.1:8888`. Open this URL in your web browser, and you should be directed to the Jupyter Dashboard, where you can create or open notebooks.
+
+## ⚡ Kaggle Notebook Deployment & Helper Scripts Setup
+
+When running [`code/bangla_image_caption.ipynb`](code/bangla_image_caption.ipynb) in a **Kaggle Notebook**, the notebook relies on modular Python helper scripts stored inside the repository (`code/caption_parsers.py`, `code/eval_metrics.py`, `code/models/`, `code/model_evaluation/`, `code/caption_selection/`).
+
+You can include and use these helper scripts in Kaggle using either of the following two methods:
+
+---
+
+### Option 1: Direct GitHub Clone inside Kaggle (Recommended)
+
+Run this snippet in the very first code cell of your Kaggle notebook:
+
+```python
+import os
+import sys
+
+# 1. Clone repository if not already present in Kaggle environment
+if not os.path.exists("VisionXAI-ModelTraining"):
+    !git clone https://github.com/abumusasakib/VisionXAI-ModelTraining.git
+
+# 2. Add code/ directory to Python path
+sys.path.append("/kaggle/working/VisionXAI-ModelTraining/code")
+
+# 3. Verify helper script imports
+import caption_parsers
+from eval_metrics import ModelEvaluator
+from models import BahdanauAttention, CNN_Encoder, RNN_Decoder
+print("✅ Helper scripts imported successfully!")
+```
+
+> **Note on Dataset Paths**: The notebook automatically checks for `/kaggle/input` data directories (such as `/kaggle/input/visionxai-dataset` or `/kaggle/input/bangla-image-captioning`) and fallbacks to local repository `/data/` paths if running locally.
+
+---
+
+### Option 2: Upload `code/` as a Kaggle Utility Script / Dataset
+
+1. In Kaggle, create a **Dataset** or **Utility Script** by uploading the `code/` directory (containing `caption_parsers.py`, `eval_metrics.py`, and subfolders `models/`, `model_evaluation/`, `caption_selection/`).
+2. Attach the dataset to your Kaggle Notebook.
+3. In your notebook, add the Kaggle dataset path to `sys.path`:
+
+```python
+import sys
+# Adjust path according to your uploaded Kaggle dataset name
+sys.path.append("/kaggle/input/your-uploaded-code-dataset/code")
+
+import caption_parsers
+from eval_metrics import ModelEvaluator
+from models import BahdanauAttention, CNN_Encoder, RNN_Decoder
+```
+
+---
+
+### 🔄 How to Replace / Update the Notebook in Kaggle
+
+If you have updated `bangla_image_caption.ipynb` or helper scripts in the repository and want to replace your active Kaggle notebook with the latest version:
+
+#### Method A: Pull Latest Changes via Git (If using Option 1)
+
+Run this in a cell inside your Kaggle notebook to pull the latest changes from GitHub:
+
+```python
+# Change directory to cloned repo and pull updates
+%cd /kaggle/working/VisionXAI-ModelTraining
+!git pull
+%cd /kaggle/working
+print("✅ Updated repository to latest commit!")
+```
+
+#### Method B: Replace via Kaggle UI Upload (Upload .ipynb)
+
+1. In your Kaggle notebook menu bar, go to **File** -> **Upload notebook**.
+2. Select your updated [`code/bangla_image_caption.ipynb`](code/bangla_image_caption.ipynb) file from your local computer.
+3. Kaggle will prompt you to replace the current notebook content while retaining your attached Kaggle datasets and GPU session settings.
+
+#### Method C: Using Kaggle CLI (`kaggle notebooks push`)
+
+If you manage Kaggle notebooks locally using the Kaggle API CLI:
+
+```bash
+# Update kernel-metadata.json with your Kaggle notebook slug, then push:
+kaggle notebooks push -p code/
+```
+
+---
 
 ## Running Unit Tests
 
