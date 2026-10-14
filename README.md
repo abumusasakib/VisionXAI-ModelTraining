@@ -256,6 +256,29 @@ kaggle notebooks push -p code/
 
 ---
 
+## Flutter On-Device Export
+
+The trained model can be exported for the Flutter application used by
+`VisionXAI-OnDeviceML`. The exporter creates the same three assets consumed by
+the app: `feature_extractor.tflite`, `decoder.tflite`, and `vocab.json`.
+
+From the repository root, run:
+
+```bash
+PYTHONPATH=code python -m on_device.export_tflite \
+  --checkpoint results/best_model/ckpt-3 \
+  --tokenizer results/tokenizer.pkl \
+  --output-dir flutter_assets
+```
+
+Copy the generated files from `flutter_assets/` into the Flutter project's
+`assets/` directory and declare them in `pubspec.yaml`. The decoder exposes
+`dec_input`, `image_features`, and `hidden` inputs, returning predictions, the
+next hidden state, and a 64-location attention map for each decoding step.
+
+The exporter uses the model architecture in `code/models/`, so exported weights
+cannot silently drift from the implementation used during training.
+
 ## Running Unit Tests
 
 To run the unit test suite for caption parsers, ablation component logic, and model registries:
